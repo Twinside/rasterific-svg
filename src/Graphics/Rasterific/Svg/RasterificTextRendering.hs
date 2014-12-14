@@ -1,5 +1,6 @@
 {-# LANGUAGE TupleSections #-}
-module Graphics.Svg.RasterificTextRendering( renderText ) where
+module Graphics.Rasterific.Svg.RasterificTextRendering
+        ( renderText ) where
 
 import Control.Monad( foldM )
 import Control.Monad.IO.Class( liftIO )
@@ -26,8 +27,8 @@ import qualified Graphics.Rasterific.Transformations as RT
 import Graphics.Rasterific.PathWalker
 import Graphics.Text.TrueType
 import Graphics.Svg.Types
-import Graphics.Svg.RenderContext
-import Graphics.Svg.PathConverter
+import Graphics.Rasterific.Svg.RenderContext
+import Graphics.Rasterific.Svg.PathConverter
 {-import Graphics.Svg.XmlParser-}
 
 import Debug.Trace

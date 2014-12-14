@@ -1,4 +1,4 @@
-module Graphics.Svg.RenderContext where
+module Graphics.Rasterific.Svg.RenderContext where
 
 import Control.Monad.Trans.Class( lift )
 import Control.Monad.Trans.State.Strict( StateT )

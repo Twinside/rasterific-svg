@@ -5,6 +5,7 @@ import Criterion.Config
 import Control.Applicative( (<$>) )
 import Graphics.Text.TrueType( emptyFontCache )
 import Graphics.Svg
+import Graphics.Rasterific.Svg
 
 myConfig :: Config
 myConfig = mempty { cfgSamples = Last $ Just 20 }
