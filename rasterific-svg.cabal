@@ -68,7 +68,7 @@ Executable bench
                , Rasterific
                , JuicyPixels
                , FontyFruity
-               , criterion
+               , criterion >= 1.0
                , deepseq
                , svg-tree
 
