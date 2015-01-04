@@ -128,7 +128,7 @@ unconsTextInfo ctxt attr nfo = do
     , _textInfoLength = _textInfoLength nfo
     }
 
-  width =
+  sWidth =
      lineariseLength ctxt attr <$> getLast (_strokeWidth attr)
 
   charInfo tex = CharInfo
@@ -138,7 +138,7 @@ unconsTextInfo ctxt attr nfo = do
     , _charDy = dyC
     , _charRotate = rotateC
     , _charStroke =
-        (,, joinOfSvg attr, capOfSvg attr) <$> width <*> tex
+        (,, joinOfSvg attr, capOfSvg attr) <$> sWidth <*> tex
     }
 
 repeatLast :: [a] -> [a]
@@ -380,11 +380,11 @@ renderString ctxt mayPath anchor str = do
     Nothing -> return . linePlacer $ fillOrders textRanges
   where
     fillOrders =
-      drawOrdersOfDrawing width height background
+      drawOrdersOfDrawing swidth sheight background
         . printTextRanges 0
 
     (mini, maxi) = _renderViewBox ctxt
-    V2 width height = floor <$> (maxi ^-^ mini)
+    V2 swidth sheight = floor <$> (maxi ^-^ mini)
     background = PixelRGBA8 0 0 0 0
 
     pathPlacer offset path =

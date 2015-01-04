@@ -10,6 +10,7 @@ import Control.Monad.Trans.State.Strict( runStateT )
 import Control.Applicative( (<$>) )
 import Codec.Picture( Image, PixelRGBA8( .. ) )
 import qualified Data.Foldable as F
+import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
 import Graphics.Rasterific.Linear( V2( V2 ), (^-^), zero )
 import Graphics.Rasterific.Outline
@@ -58,9 +59,8 @@ renderSvgDocument cache sizes doc = case sizes of
         R.withTransformation (RT.translate (negate p)) .
             sizeFitter (zero, V2 (xEnd - xs) (yEnd - ys)) actualSize
 
-    elements = _elements doc
     renderAtSize (w, h) = do
-      let stateDraw = mapM (renderSvg emptyContext) elements
+      let stateDraw = mapM (renderSvg emptyContext) $ _elements doc
       (elems, s) <- runStateT stateDraw mempty
       let drawing = sizeFitter box (w, h) $ sequence_ elems
           img = R.renderDrawing w h white drawing
@@ -147,6 +147,17 @@ viewBoxOfTree :: Tree -> Maybe (Int, Int, Int, Int)
 viewBoxOfTree (SymbolTree g) = _groupViewBox g
 viewBoxOfTree _ = Nothing
 
+geometryOfNamedElement :: RenderContext -> String -> Tree
+geometryOfNamedElement ctxt str =
+  maybe None extractGeometry . M.lookup str $ _contextDefinitions ctxt
+  where
+    extractGeometry e = case e of
+      ElementLinearGradient _ -> None
+      ElementRadialGradient _ -> None
+      ElementPattern _ -> None
+      ElementMarker _ -> None
+      ElementGeometry g -> g
+
 renderSvg :: RenderContext -> Tree -> IODraw (R.Drawing PixelRGBA8 ())
 renderSvg initialContext = go initialContext initialAttr
   where
@@ -190,13 +201,14 @@ renderSvg initialContext = go initialContext initialAttr
     go _ _ None = return mempty
     go ctxt attr (TextArea tp stext) = renderText ctxt attr tp stext
 
-    go ctxt attr (UseTree useData subTree) = do
+    go ctxt attr (UseTree useData) = do
       sub <- go ctxt attr' subTree
       return . fitUse ctxt attr useData subTree
              $ withTransform pAttr sub
       where
         pAttr = _useDrawAttributes useData
         attr' = attr <> pAttr
+        subTree = geometryOfNamedElement ctxt $ _useName useData
 
     go ctxt attr (SymbolTree g) = go ctxt attr $ GroupTree g
     go ctxt attr (GroupTree (Group groupAttr subTrees _)) = do
