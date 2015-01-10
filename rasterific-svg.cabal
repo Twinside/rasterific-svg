@@ -24,6 +24,9 @@ library
 
   build-depends: base >= 4.6,
                  attoparsec,
+                 directory,
+                 bytestring,
+                 binary >= 0.7,
                  scientific >= 0.3,
                  JuicyPixels >= 3.2 && < 3.3,
                  containers >= 0.5,
@@ -39,7 +42,8 @@ library
                  lens,
                  groom
 
-Executable svgrender
+Test-Suite svgrender
+  type: exitcode-stdio-1.0
   hs-source-dirs: exec-src
   Main-Is: svgrender.hs
   Ghc-options: -O3 -Wall
@@ -58,7 +62,8 @@ Executable svgrender
                , bytestring
                , svg-tree
 
-Executable bench
+Test-Suite bench
+  type: exitcode-stdio-1.0
   hs-source-dirs: exec-src
   Main-Is: benching.hs
   Ghc-options: -O3 -Wall

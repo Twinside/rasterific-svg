@@ -1,47 +1,19 @@
 import Control.Applicative( (<$>) )
 import Control.Monad( forM_ )
-import Data.Binary( encodeFile, decodeOrFail  )
-import qualified Data.ByteString.Lazy as B
 import Data.List( isSuffixOf, sort )
 import System.Environment( getArgs )
 import System.Directory( createDirectoryIfMissing
                        , getDirectoryContents
-                       , doesFileExist
                        )
 import System.FilePath( dropExtension, (</>), (<.>), splitFileName )
 
 import Codec.Picture( writePng )
 
-import Graphics.Text.TrueType( FontCache, buildCache )
+import Graphics.Text.TrueType( FontCache )
 import Graphics.Rasterific.Svg
 import Graphics.Svg hiding ( text )
 {-import Debug.Trace-}
 import Text.Printf
-
-loadCreateFontCache :: IO FontCache
-loadCreateFontCache = do
-  exist <- doesFileExist filename
-  if exist then loadCache else createWrite
-  where
-    filename =  "fonty-texture-cache"
-    loadCache = do
-      putStrLn "Loading pre-existing font cache"
-      bstr <- B.readFile filename
-      case decodeOrFail bstr of
-        Left _ -> do
-          putStrLn "Failed to load cache, recreate"
-          createWrite
-        Right (_, _, v) -> do
-          putStrLn "Done"
-          return v
-      
-    createWrite = do
-      putStrLn "Building font cache..."
-      cache <- buildCache
-      putStrLn "Saving font cache..."
-      encodeFile filename cache
-      putStrLn "Done"
-      return cache
 
 loadRender :: [String] -> IO ()
 loadRender [] = putStrLn "not enough arguments"
@@ -51,7 +23,7 @@ loadRender (svgfilename:pngfilename:_) = do
   case f of
      Nothing -> putStrLn "Error while loading SVG"
      Just doc -> do
-        cache <- loadCreateFontCache
+        cache <- loadCreateFontCache "fonty-texture-cache"
         (finalImage, _) <- renderSvgDocument cache Nothing doc
         writePng pngfilename finalImage
 
@@ -125,7 +97,7 @@ analyzeFolder cache folder = do
 
 testSuite :: IO ()
 testSuite = do
-    cache <- loadCreateFontCache
+    cache <- loadCreateFontCache "rasterific-svg-font-cache"
     analyzeFolder cache "w3csvg"
     analyzeFolder cache "test"
 

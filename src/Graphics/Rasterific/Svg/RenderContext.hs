@@ -192,7 +192,6 @@ documentOfPattern pat = Document
     , _elements    = _patternElements pat
     , _definitions = M.empty
     , _styleRules  = []
-    , _styleText = ""
     , _description = ""
     }
 
