@@ -26,9 +26,9 @@ import Graphics.Rasterific.Svg.RasterificTextRendering
 {-import Text.Groom-}
 
 
-renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Document
+renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
                   -> IO (Image PixelRGBA8, LoadedFonts)
-renderSvgDocument cache sizes doc = case sizes of
+renderSvgDocument cache sizes dpi doc = case sizes of
     Just s -> renderAtSize s
     Nothing -> renderAtSize $ documentSize doc
   where
@@ -44,7 +44,8 @@ renderSvgDocument cache sizes doc = case sizes of
         , _initialViewBox = box
         , _contextDefinitions = _definitions doc
         , _fontCache = cache
-        , _subRender = renderSvgDocument cache Nothing
+        , _renderDpi = dpi
+        , _subRender = renderSvgDocument cache Nothing dpi
         }
     white = PixelRGBA8 255 255 255 255
 

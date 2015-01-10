@@ -380,7 +380,7 @@ renderString ctxt mayPath anchor str = do
     Nothing -> return . linePlacer $ fillOrders textRanges
   where
     fillOrders =
-      drawOrdersOfDrawing swidth sheight background
+      drawOrdersOfDrawing swidth sheight (_renderDpi ctxt) background
         . printTextRanges 0
 
     (mini, maxi) = _renderViewBox ctxt

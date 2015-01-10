@@ -23,10 +23,10 @@ import Codec.Picture( Image
 
 {-import Graphics.Svg.CssParser-}
 
-renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Document
+renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
                   -> IO (Image PixelRGBA8, LoadedFonts)
-renderSvgDocument cache size =
-    RR.renderSvgDocument cache size . applyCSSRules 
+renderSvgDocument cache size dpi =
+    RR.renderSvgDocument cache size dpi . applyCSSRules 
 
 data Result
   = ResultSuccess
@@ -42,7 +42,7 @@ renderSvgFile svgfilename pngfilename = do
      Nothing -> return $ ResultError "Error while loading SVG"
      Just doc -> do
         cache <- loadCreateFontCache "fonty-texture-cache"
-        (finalImage, _) <- renderSvgDocument cache Nothing doc
+        (finalImage, _) <- renderSvgDocument cache Nothing 96 doc
         writePng pngfilename finalImage
         return ResultSuccess
 

@@ -24,7 +24,7 @@ loadRender (svgfilename:pngfilename:_) = do
      Nothing -> putStrLn "Error while loading SVG"
      Just doc -> do
         cache <- loadCreateFontCache "fonty-texture-cache"
-        (finalImage, _) <- renderSvgDocument cache Nothing doc
+        (finalImage, _) <- renderSvgDocument cache Nothing 96 doc
         writePng pngfilename finalImage
 
 type Html = String
@@ -88,7 +88,7 @@ analyzeFolder cache folder = do
       Nothing -> putStrLn $ "Failed to load " ++ p
       Just d -> do
         putStrLn $ "   => Rendering " ++ show (documentSize d)
-        (finalImage, _) <- renderSvgDocument cache Nothing d
+        (finalImage, _) <- renderSvgDocument cache Nothing 96 d
         writePng (testFileOfPath p) finalImage
 
         putStrLn "   => XMLize"

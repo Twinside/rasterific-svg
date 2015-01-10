@@ -12,7 +12,7 @@ main = do
   case f of
      Nothing -> putStrLn "Error while loading SVG"
      Just doc -> do
-       let loader = fst <$> renderSvgDocument emptyFontCache Nothing doc
+       let loader = fst <$> renderSvgDocument emptyFontCache Nothing 96 doc
        defaultMainWith defaultConfig
             [ bench "Tiger render" $ whnfIO loader ]
 

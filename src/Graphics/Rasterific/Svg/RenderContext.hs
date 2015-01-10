@@ -20,6 +20,7 @@ toRadian v = v / 180 * pi
 data RenderContext = RenderContext
     { _initialViewBox     :: (R.Point, R.Point)
     , _renderViewBox      :: (R.Point, R.Point)
+    , _renderDpi          :: Int
     , _contextDefinitions :: M.Map String Element
     , _fontCache          :: FontCache
     , _subRender          :: Document -> IO (Image PixelRGBA8, LoadedFonts)
