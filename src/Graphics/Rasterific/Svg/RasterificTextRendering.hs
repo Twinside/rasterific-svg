@@ -291,7 +291,7 @@ prepareRenderableString ctxt ini_attr root = -- trace (groom root) $
       return (acc <> drawn, textInfoRests thisTextInfo info newInfo)
   everyContent attr (acc, info) (SpanText txt) = do
     let fontFamilies = fromMaybe [] . getLast $ _fontFamily attr
-        fontFilename = trace (show fontFamilies) $ getFirst $ F.foldMap fontFinder fontFamilies
+        fontFilename = getFirst $ F.foldMap fontFinder fontFamilies
     font <- loadFont $ fromMaybe "" fontFilename
     case font of
       Nothing -> return (acc, info)
@@ -428,7 +428,7 @@ renderText ctxt attr ppath stext =
     offset = do
       rpath <- renderPath
       mayOffset <- _textPathStartOffset <$> ppath
-      return . (\a -> trace ("OFFSET: " ++ show a) a) $ startOffsetOfPath attr rpath mayOffset
+      return $ startOffsetOfPath attr rpath mayOffset
 
     pathInfo = (,) <$> (offset <|> return 0) <*> renderPath
 
