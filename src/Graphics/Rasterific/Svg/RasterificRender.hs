@@ -202,7 +202,15 @@ renderSvg initialContext = go initialContext initialAttr
     go _ _ None = return mempty
     go ctxt attr (TextArea tp stext) = renderText ctxt attr tp stext
 
-    go ctxt attr (UseTree useData) = do
+    go ctxt attr (UseTree useData (Just subTree)) = do
+      sub <- go ctxt attr' subTree
+      return . fitUse ctxt attr useData subTree
+             $ withTransform pAttr sub
+      where
+        pAttr = _useDrawAttributes useData
+        attr' = attr <> pAttr
+
+    go ctxt attr (UseTree useData Nothing) = do
       sub <- go ctxt attr' subTree
       return . fitUse ctxt attr useData subTree
              $ withTransform pAttr sub

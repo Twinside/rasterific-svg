@@ -26,7 +26,7 @@ import Codec.Picture( Image
 renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
                   -> IO (Image PixelRGBA8, LoadedFonts)
 renderSvgDocument cache size dpi =
-    RR.renderSvgDocument cache size dpi . applyCSSRules 
+    RR.renderSvgDocument cache size dpi . applyCSSRules . resolveUses
 
 data Result
   = ResultSuccess

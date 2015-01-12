@@ -2,6 +2,7 @@ import Control.Applicative( (<$>) )
 import Control.Monad( forM_ )
 import Data.Foldable( foldMap )
 import Data.Monoid( (<>) )
+import Data.List( isSuffixOf, sort )
 import System.Environment( getArgs )
 import System.Directory( createDirectoryIfMissing
                        , getDirectoryContents
@@ -18,7 +19,8 @@ import Graphics.Text.TrueType( FontCache )
 import Graphics.Rasterific.Svg
 import Graphics.Svg hiding ( text )
 {-import Debug.Trace-}
-import Text.Printf
+{-import Text.Printf-}
+{-import Text.Groom-}
 
 loadRender :: [String] -> IO ()
 loadRender [] = putStrLn "not enough arguments"
@@ -72,8 +74,7 @@ toHtmlDocument html = H.renderHtml $
 analyzeFolder :: FontCache -> FilePath -> IO ()
 analyzeFolder cache folder = do
   createDirectoryIfMissing True testOutputFolder
-  fileList <- -- sort . filter (".svg" `isSuffixOf`) <$> getDirectoryContents folder
-              return ["Use04.svg"]
+  fileList <- sort . filter (".svg" `isSuffixOf`) <$> getDirectoryContents folder
   let hdr = H.toHtml <$> ["name", "W3C Svg", "W3C ref PNG", "mine", "svgmine"]
       all_table =
         table hdr . map generateFileInfo $ map (folder </>) fileList
@@ -87,7 +88,7 @@ analyzeFolder cache folder = do
     let realFilename = folder </> p
     putStrLn $ "Loading: " ++ realFilename
     svg <- loadSvgFile realFilename
-    putStrLn $ groom svg
+    {-putStrLn $ groom svg-}
     case svg of
       Nothing -> putStrLn $ "Failed to load " ++ p
       Just d -> do
