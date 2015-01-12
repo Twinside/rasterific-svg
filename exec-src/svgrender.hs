@@ -1,10 +1,15 @@
 import Control.Applicative( (<$>) )
 import Control.Monad( forM_ )
-import Data.List( isSuffixOf, sort )
+import Data.Foldable( foldMap )
+import Data.Monoid( (<>) )
 import System.Environment( getArgs )
 import System.Directory( createDirectoryIfMissing
                        , getDirectoryContents
                        )
+import qualified Text.Blaze.Html5 as HT
+import qualified Text.Blaze.Html5 as H
+import qualified Text.Blaze.Html5.Attributes as H
+import qualified Text.Blaze.Html.Renderer.String as H
 import System.FilePath( dropExtension, (</>), (<.>), splitFileName )
 
 import Codec.Picture( writePng )
@@ -27,20 +32,16 @@ loadRender (svgfilename:pngfilename:_) = do
         (finalImage, _) <- renderSvgDocument cache Nothing 96 doc
         writePng pngfilename finalImage
 
-type Html = String
-
 testOutputFolder :: FilePath
 testOutputFolder = "gen_test"
 
-img :: FilePath -> Int -> Int -> Html
-img path _w _h =
-    printf "<img src=\"%s\" alt=\"%s\" />" path path
+img :: FilePath -> Int -> Int -> H.Html
+img path _w _h = H.img H.! H.src (H.toValue path)
 
-table :: [Html] -> [[Html]] -> Html
+table :: [H.Html] -> [[H.Html]] -> H.Html
 table headers cells =
-        "<table>" ++ header ++ concat ["<tr>" ++ elems row ++ "</tr>\n" | row <- cells ] ++ "</table>"
-  where elems row = concat ["<td>" ++ cell ++ "</td>\n" | cell <- row  ]
-        header = "<tr>" ++ concat ["<th>" ++ h ++ "</th>" | h <- headers ] ++ "</tr>"
+  H.table $ header <> foldMap (H.tr . foldMap H.td) cells
+  where header = H.tr $ foldMap H.th headers
 
 testFileOfPath :: FilePath -> FilePath
 testFileOfPath path = testOutputFolder </> base <.> "png"
@@ -51,10 +52,10 @@ svgTestFileOfPath path = testOutputFolder </> base <.> "svg"
   where (_, base) = splitFileName path
 
 
-text :: String -> Html
-text txt = txt ++ "<br/>"
+text :: String -> H.Html
+text txt = H.toHtml txt <> H.br
 
-generateFileInfo :: FilePath -> [Html]
+generateFileInfo :: FilePath -> [H.Html]
 generateFileInfo path =
     [ text path, img path 0 0
     , img pngRef 0 0
@@ -63,16 +64,19 @@ generateFileInfo path =
   where
     pngRef = dropExtension path <.> "png"
 
-toHtmlDocument :: Html -> String
-toHtmlDocument html =
-    "<html><head><title>Test results</title></head><body>" ++ html ++ "</body></html"
-
+toHtmlDocument :: H.Html -> String
+toHtmlDocument html = H.renderHtml $
+  H.html $ H.head (HT.title $ H.toHtml "Test results")
+        <> H.body html
+                
 analyzeFolder :: FontCache -> FilePath -> IO ()
 analyzeFolder cache folder = do
   createDirectoryIfMissing True testOutputFolder
-  fileList <- sort . filter (".svg" `isSuffixOf`) <$> getDirectoryContents folder
-  let all_table = table ["name", "W3C Svg", "W3C ref PNG", "mine", "svgmine"]
-                . map generateFileInfo $ map (folder </>) fileList
+  fileList <- -- sort . filter (".svg" `isSuffixOf`) <$> getDirectoryContents folder
+              return ["Use04.svg"]
+  let hdr = H.toHtml <$> ["name", "W3C Svg", "W3C ref PNG", "mine", "svgmine"]
+      all_table =
+        table hdr . map generateFileInfo $ map (folder </>) fileList
       doc = toHtmlDocument all_table
       (_, folderBase) = splitFileName folder
 
@@ -83,7 +87,7 @@ analyzeFolder cache folder = do
     let realFilename = folder </> p
     putStrLn $ "Loading: " ++ realFilename
     svg <- loadSvgFile realFilename
-    {-print svg-}
+    putStrLn $ groom svg
     case svg of
       Nothing -> putStrLn $ "Failed to load " ++ p
       Just d -> do
