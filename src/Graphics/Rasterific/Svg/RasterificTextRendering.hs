@@ -229,9 +229,6 @@ prepareCharTranslation ctxt info bounds prevDelta prevAbsolute = go where
           trans = RT.translate $ positionDelta ^+^ newDelta in
       (newDelta, positionDelta, trans)
 
-pixelToPt :: Float -> Float
-pixelToPt a = a / 1.25
-
 transformPlaceGlyph :: RenderContext
                     -> RT.Transformation
                     -> R.PlaneBound
@@ -383,6 +380,7 @@ renderString ctxt mayPath anchor str = do
       drawOrdersOfDrawing swidth sheight (_renderDpi ctxt) background
         . printTextRanges 0
 
+    pixelToPt s = pixelSizeInPointAtDpi s $ _renderDpi ctxt
     (mini, maxi) = _renderViewBox ctxt
     V2 swidth sheight = floor <$> (maxi ^-^ mini)
     background = PixelRGBA8 0 0 0 0
@@ -402,7 +400,7 @@ renderString ctxt mayPath anchor str = do
                         _fillColor _fillOpacity 
       return TextRange
         { _textFont = _renderableFont renderable
-        , _textSize = floor . pixelToPt $ _renderableSize renderable
+        , _textSize = pixelToPt $ _renderableSize renderable
         , _text     = fst <$> _renderableString renderable
         , _textTexture = mayTexture
         }
