@@ -50,35 +50,40 @@ joinOfSvg attrs =
     (Just JoinBevel, _) -> R.JoinMiter 5
     (Just JoinRound, _) -> R.JoinRound
 
-boundingBoxLength :: DrawAttributes -> R.PlaneBound -> Number
-                  -> Float
-boundingBoxLength attr (R.PlaneBound mini maxi) num =
-    case num of
-      Num n -> n
-      Em n -> emTransform attr n
-      Percent p -> p * coeff
-  where
-     R.V2 actualWidth actualHeight =
-                abs <$> (maxi ^-^ mini)
-     two = 2 :: Int
-     coeff = sqrt (actualWidth ^^ two + actualHeight ^^ two)
-           / sqrt 2
+stripUnits :: RenderContext -> Number -> Number
+stripUnits ctxt = toUserUnit (_renderDpi ctxt)
 
-boundbingBoxLinearise :: DrawAttributes -> R.PlaneBound -> Point
+boundingBoxLength :: RenderContext -> DrawAttributes -> R.PlaneBound -> Number
+                  -> Float
+boundingBoxLength ctxt attr (R.PlaneBound mini maxi) = go where
+  R.V2 actualWidth actualHeight =
+             abs <$> (maxi ^-^ mini)
+  two = 2 :: Int
+  coeff = sqrt (actualWidth ^^ two + actualHeight ^^ two)
+        / sqrt 2
+  go num = case num of
+    Num n -> n
+    Em n -> emTransform attr n
+    Percent p -> p * coeff
+    _ -> go $ stripUnits ctxt num
+
+boundbingBoxLinearise :: RenderContext -> DrawAttributes -> R.PlaneBound -> Point
                       -> R.Point
 boundbingBoxLinearise
-    attr (R.PlaneBound mini@(R.V2 xi yi) maxi) (xp, yp) = R.V2 finalX finalY
+    ctxt attr (R.PlaneBound mini@(R.V2 xi yi) maxi) (xp, yp) = R.V2 (finalX xp) (finalY yp)
   where
     R.V2 w h = abs <$> (maxi ^-^ mini)
-    finalX = case xp of
+    finalX nu = case nu of
       Num n -> n
       Em n -> emTransform attr n
       Percent p -> p * w + xi
+      _ -> finalX $ stripUnits ctxt nu
 
-    finalY = case yp of
+    finalY nu = case nu of
       Num n -> n
       Em n -> emTransform attr n
       Percent p -> p * h + yi
+      _ -> finalY $ stripUnits ctxt nu
 
 lineariseXLength :: RenderContext -> DrawAttributes -> Number
                  -> Coord
@@ -87,6 +92,8 @@ lineariseXLength _ attr (Em i) = emTransform attr i
 lineariseXLength ctxt _ (Percent p) = abs (xe - xs) * p
   where
     (R.V2 xs _, R.V2 xe _) = _renderViewBox ctxt
+lineariseXLength ctxt attr num =
+    lineariseXLength ctxt attr $ stripUnits ctxt num
 
 lineariseYLength :: RenderContext -> DrawAttributes -> Number
                  -> Coord
@@ -95,6 +102,8 @@ lineariseYLength _ attr (Em n) = emTransform attr n
 lineariseYLength ctxt _ (Percent p) = abs (ye - ys) * p
   where
     (R.V2 _ ys, R.V2 _ ye) = _renderViewBox ctxt
+lineariseYLength ctxt attr num =
+    lineariseYLength ctxt attr $ stripUnits ctxt num
 
 
 linearisePoint :: RenderContext -> DrawAttributes -> Point
@@ -123,6 +132,8 @@ lineariseLength ctxt _ (Percent v) = v * coeff
     two = 2 :: Int
     coeff = sqrt (actualWidth ^^ two + actualHeight ^^ two)
           / sqrt 2
+lineariseLength ctxt attr num =
+    lineariseLength ctxt attr $ stripUnits ctxt num
 
 prepareLinearGradientTexture
     :: RenderContext -> DrawAttributes
@@ -132,7 +143,7 @@ prepareLinearGradientTexture ctxt attr grad opa prims =
   let bounds = F.foldMap R.planeBounds prims
       lineariser = case _linearGradientUnits grad of
         GradientUserSpace -> linearisePoint ctxt attr
-        GradientBoundingBox -> boundbingBoxLinearise attr bounds
+        GradientBoundingBox -> boundbingBoxLinearise ctxt attr bounds
       gradient =
         [(offset, fillAlphaCombine opa color)
             | GradientStop offset color <- _linearGradientStops grad]
@@ -151,7 +162,8 @@ prepareRadialGradientTexture ctxt attr grad opa prims =
         GradientUserSpace ->
           (linearisePoint ctxt attr, lineariseLength ctxt attr)
         GradientBoundingBox ->
-          (boundbingBoxLinearise attr bounds, boundingBoxLength attr bounds)
+          (boundbingBoxLinearise ctxt attr bounds,
+           boundingBoxLength ctxt attr bounds)
       gradient =
         [(offset, fillAlphaCombine opa color)
             | GradientStop offset color <- _radialGradientStops grad]

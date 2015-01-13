@@ -405,12 +405,14 @@ renderString ctxt mayPath anchor str = do
         , _textTexture = mayTexture
         }
 
-startOffsetOfPath :: DrawAttributes -> R.Path -> Number
+startOffsetOfPath :: RenderContext -> DrawAttributes -> R.Path -> Number
                   -> Float
-startOffsetOfPath _ _ (Num i) = i
-startOffsetOfPath attr _ (Em i) = emTransform attr i
-startOffsetOfPath _ path (Percent p) =
+startOffsetOfPath _ _ _ (Num i) = i
+startOffsetOfPath _ attr _ (Em i) = emTransform attr i
+startOffsetOfPath _ _ path (Percent p) =
     p * RO.approximatePathLength path
+startOffsetOfPath ctxt attr path num =
+    startOffsetOfPath ctxt attr path $ stripUnits ctxt num
 
 renderText :: RenderContext
            -> DrawAttributes
@@ -426,7 +428,7 @@ renderText ctxt attr ppath stext =
     offset = do
       rpath <- renderPath
       mayOffset <- _textPathStartOffset <$> ppath
-      return $ startOffsetOfPath attr rpath mayOffset
+      return $ startOffsetOfPath ctxt attr rpath mayOffset
 
     pathInfo = (,) <$> (offset <|> return 0) <*> renderPath
 
