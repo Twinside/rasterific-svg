@@ -9,13 +9,13 @@ module Graphics.Rasterific.Svg
 import qualified Data.ByteString.Lazy as B
 import qualified Graphics.Rasterific.Svg.RasterificRender as RR
 import Data.Binary( encodeFile, decodeOrFail )
-import Graphics.Svg.Types
+import Graphics.Svg.Types hiding ( Dpi )
+import Graphics.Svg hiding ( Dpi )
 import Graphics.Rasterific.Svg.RenderContext
 
 import System.Directory( doesFileExist )
 import Graphics.Text.TrueType
 
-import Graphics.Svg
 
 import Codec.Picture( Image
                     , PixelRGBA8( .. )

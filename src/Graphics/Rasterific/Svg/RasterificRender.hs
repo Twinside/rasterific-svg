@@ -16,7 +16,7 @@ import Graphics.Rasterific.Linear( V2( V2 ), (^-^), zero )
 import Graphics.Rasterific.Outline
 import qualified Graphics.Rasterific.Transformations as RT
 import Graphics.Text.TrueType
-import Graphics.Svg.Types
+import Graphics.Svg.Types hiding ( Dpi )
 import Graphics.Rasterific.Svg.PathConverter
 import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.RasterificTextRendering
