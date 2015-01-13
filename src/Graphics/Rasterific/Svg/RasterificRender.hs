@@ -30,9 +30,11 @@ renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
                   -> IO (Image PixelRGBA8, LoadedFonts)
 renderSvgDocument cache sizes dpi doc = case sizes of
     Just s -> renderAtSize s
-    Nothing -> renderAtSize $ documentSize doc
+    Nothing -> renderAtSize $ documentSize dpi doc
   where
-    (x1, y1, x2, y2) = case (_viewBox doc, _width doc, _height doc) of
+    uuWidth = toUserUnit dpi <$> _width doc
+    uuHeight = toUserUnit dpi <$> _height doc
+    (x1, y1, x2, y2) = case (_viewBox doc, uuWidth, uuHeight) of
         (Just v,      _,      _) -> v
         (     _, Just (Num w), Just (Num h)) -> (0, 0, floor w, floor h)
         _                        -> (0, 0, 1, 1)

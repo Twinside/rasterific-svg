@@ -92,7 +92,7 @@ analyzeFolder cache folder = do
     case svg of
       Nothing -> putStrLn $ "Failed to load " ++ p
       Just d -> do
-        putStrLn $ "   => Rendering " ++ show (documentSize d)
+        putStrLn $ "   => Rendering " ++ show (documentSize 96 d)
         (finalImage, _) <- renderSvgDocument cache Nothing 96 d
         writePng (testFileOfPath p) finalImage
 
