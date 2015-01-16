@@ -173,7 +173,7 @@ renderSvg initialContext = go initialContext initialAttr
              , _fillColor = Last . Just . ColorRef $ PixelRGBA8 0 0 0 255
              , _fillOpacity = Just 1.0
              , _fillRule = Last $ Just FillNonZero
-             , _fontSize = Last . Just $ Num 12
+             , _fontSize = Last . Just $ Num 16
              , _fontFamily = Last $ Just ["Verdana"]
              , _textAnchor = Last $ Just TextAnchorStart
              }
