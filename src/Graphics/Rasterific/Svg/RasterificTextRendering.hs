@@ -31,16 +31,16 @@ import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.PathConverter
 {-import Graphics.Svg.XmlParser-}
 
-import Debug.Trace
-import Text.Printf
+{-import Debug.Trace-}
+{-import Text.Printf-}
 
 loadFont :: FilePath -> IODraw (Maybe Font)
 loadFont path = do
   loaded <- get
   case M.lookup path loaded of
-    Just v -> return . trace (printf "fetching cached:%s" path) $ Just v
+    Just v -> return $ Just v
     Nothing -> do
-      file <- liftIO . trace (printf "Loading file:%s" path) $ loadFontFile path
+      file <- liftIO $ loadFontFile path
       case file of
         Left _ -> return Nothing
         Right f -> do
@@ -267,10 +267,51 @@ transformPlaceGlyph ctxt pathTransformation bounds order = do
         stroking $ _charStroke info
     }
 
+prepareFontFamilies :: DrawAttributes -> [String]
+prepareFontFamilies = (++ defaultFont)
+                    . fmap replaceDefault
+                    . fromMaybe []
+                    . getLast 
+                    . _fontFamily
+  where
+    defaultFont = ["Arial"]
+    -- using "safe" web font, hoping they are present on
+    -- the system.
+    replaceDefault s = case s of
+      "monospace" -> "Courier New"
+      "sans-serif" -> "Arial"
+      "serif" -> "Times New Roman"
+      _ -> s
+
+fontOfAttributes :: FontCache -> DrawAttributes -> IODraw (Maybe Font)
+fontOfAttributes fontCache attr = case fontFilename of
+  Nothing -> return Nothing
+  Just fn -> loadFont fn
+  where
+    fontFilename =
+      getFirst . F.foldMap fontFinder $ prepareFontFamilies attr
+    noStyle = FontStyle
+            { _fontStyleBold = False
+            , _fontStyleItalic = False }
+
+    italic = noStyle { _fontStyleItalic = True }
+
+    style = case getLast $ _fontStyle attr of
+      Nothing -> noStyle
+      Just FontStyleNormal -> noStyle
+      Just FontStyleItalic -> italic
+      Just FontStyleOblique -> italic
+
+    fontFinder ff =
+         First $ findFontInCache fontCache descriptor
+      where descriptor = FontDescriptor	 
+                 { _descriptorFamilyName = T.pack ff
+                 , _descriptorStyle = style }
+
 
 prepareRenderableString :: RenderContext -> DrawAttributes -> Text
                         -> IODraw [RenderableString PixelRGBA8]
-prepareRenderableString ctxt ini_attr root = -- trace (groom root) $
+prepareRenderableString ctxt ini_attr root =
     fst <$> everySpan ini_attr mempty (_textRoot root) where
 
   everySpan attr originalInfo tspan =
@@ -287,9 +328,7 @@ prepareRenderableString ctxt ini_attr root = -- trace (groom root) $
       (drawn, newInfo) <- everySpan attr info thisSpan
       return (acc <> drawn, textInfoRests thisTextInfo info newInfo)
   everyContent attr (acc, info) (SpanText txt) = do
-    let fontFamilies = fromMaybe [] . getLast $ _fontFamily attr
-        fontFilename = getFirst $ F.foldMap fontFinder fontFamilies
-    font <- loadFont $ fromMaybe "" fontFilename
+    font <- fontOfAttributes (_fontCache ctxt) attr
     case font of
       Nothing -> return (acc, info)
       Just f -> do
@@ -302,22 +341,6 @@ prepareRenderableString ctxt ini_attr root = -- trace (groom root) $
           Just v -> lineariseLength ctxt attr v
           Nothing -> 16
 
-       noStyle = FontStyle
-               { _fontStyleBold = False
-               , _fontStyleItalic = False }
-       italic = noStyle { _fontStyleItalic = True }
-
-       style = case getLast $ _fontStyle attr of
-         Nothing -> noStyle
-         Just FontStyleNormal -> noStyle
-         Just FontStyleItalic -> italic
-         Just FontStyleOblique -> italic
-
-       fontFinder ff =
-            First $ findFontInCache (_fontCache ctxt) descriptor
-         where descriptor = FontDescriptor	 
-                    { _descriptorFamilyName = T.pack ff
-                    , _descriptorStyle = style }
 
 anchorStringRendering :: TextAnchor -> LetterTransformerState
                       -> Drawing PixelRGBA8 ()
