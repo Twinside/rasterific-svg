@@ -1,12 +1,20 @@
+-- | Svg renderer based on Rasterific.
 module Graphics.Rasterific.Svg
-                    ( LoadedFonts
-                    , Result( .. )
+                    ( -- * Main functions
+                      drawingOfSvgDocument
                     , renderSvgDocument
-                    , renderSvgFile
                     , loadCreateFontCache
+                      -- * Types
+                    , LoadedFonts
+                    , Result( .. )
+                    , DrawResult( .. )
+                    , Dpi
+                      -- * Other helper functions
+                    , renderSvgFile
                     ) where
 
 import qualified Data.ByteString.Lazy as B
+import Graphics.Rasterific.Svg.RasterificRender( DrawResult( .. ) )
 import qualified Graphics.Rasterific.Svg.RasterificRender as RR
 import Data.Binary( encodeFile, decodeOrFail )
 import Graphics.Svg.Types hiding ( Dpi )
@@ -23,18 +31,51 @@ import Codec.Picture( Image
 
 {-import Graphics.Svg.CssParser-}
 
-renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
+-- | Render an svg document to an image.
+-- If you provide a size, the document will be stretched to
+-- match the provided size.
+--
+-- The DPI parameter really should depend of your screen, but
+-- a good default value is 96
+--
+-- The use of the IO Monad is there to allow loading of fonts
+-- and referenced images.
+renderSvgDocument :: FontCache          -- ^ Structure used to access fonts
+                  -> Maybe (Int, Int)   -- ^ Optional document size
+                  -> Dpi                -- ^ Current resolution for text and elements
+                  -> Document           -- ^ Svg document
                   -> IO (Image PixelRGBA8, LoadedFonts)
 renderSvgDocument cache size dpi =
     RR.renderSvgDocument cache size dpi . applyCSSRules . resolveUses
 
+-- | Render an svg document to a Rasterific Drawing.
+-- If you provide a size, the document will be stretched to
+-- match the provided size.
+--
+-- The DPI parameter really should depend of your screen, but
+-- a good default value is 96
+--
+-- The use of the IO Monad is there to allow loading of fonts
+-- and referenced images.
+drawingOfSvgDocument :: FontCache          -- ^ Structure used to access fonts
+                     -> Maybe (Int, Int)   -- ^ Optional document size
+                     -> Dpi                -- ^ Current resolution for text and elements
+                     -> Document           -- ^ Svg document
+                     -> IO (DrawResult, LoadedFonts)
+drawingOfSvgDocument cache size dpi =
+    RR.drawingOfSvgDocument cache size dpi . applyCSSRules . resolveUses
+
+-- | Rendering status.
 data Result
-  = ResultSuccess
-  | ResultError String
+  = ResultSuccess       -- ^ No problem found
+  | ResultError String  -- ^ Error with message
   deriving (Eq, Show)
 
 -- | Convert an SVG file to a PNG file, return True
 -- if the operation went without problems.
+-- 
+-- This function will call loadCreateFontCache with
+-- the filename "fonty-texture-cache"
 renderSvgFile :: FilePath -> FilePath -> IO Result
 renderSvgFile svgfilename pngfilename = do
   f <- loadSvgFile svgfilename
@@ -46,6 +87,18 @@ renderSvgFile svgfilename pngfilename = do
         writePng pngfilename finalImage
         return ResultSuccess
 
+-- | This function will create a font cache,
+-- a structure allowing to quickly match a font
+-- family name and style to a specific true type font
+-- on disk.
+--
+-- The cache is saved on disk at the filepath given
+-- as parameter. If a cache is found it is automatically
+-- loaded from the file.
+--
+-- Creating the cache is a rather long operation (especially
+-- on Windows), that's why you may want to keep the cache
+-- around.
 loadCreateFontCache :: FilePath -> IO FontCache
 loadCreateFontCache filename = do
   exist <- doesFileExist filename

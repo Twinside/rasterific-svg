@@ -1,7 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables     #-}
 {-# LANGUAGE TupleSections #-}
 module Graphics.Rasterific.Svg.RasterificRender
-    ( renderSvgDocument ) where
+    ( DrawResult( .. )
+    , renderSvgDocument
+    , drawingOfSvgDocument
+    ) where
 
 import Data.Monoid( Last( .. ), mempty, (<>) )
 import Data.Maybe( fromMaybe  )
@@ -25,10 +28,32 @@ import Graphics.Rasterific.Svg.RasterificTextRendering
 {-import Text.Printf-}
 {-import Text.Groom-}
 
+-- | Represent a Rasterific drawing with the associated
+-- image size.
+data DrawResult = DrawResult
+    { -- | Rasterific drawing, can be reused and composed
+      -- with other elements for scene drawing.
+      _drawAction :: R.Drawing PixelRGBA8 ()
+      -- | Supposed drawing width of the drawing, ideally
+      -- represent the final image width.
+    , _drawWidth :: {-# UNPACK #-}!Int
+      -- | Supposed drawing height of the drawing, ideally
+      -- represent the final image height.
+    , _drawHeight :: {-# UNPACK #-}!Int
+    }
 
 renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
                   -> IO (Image PixelRGBA8, LoadedFonts)
-renderSvgDocument cache sizes dpi doc = case sizes of
+renderSvgDocument cache sizes dpi doc = do
+  (drawing, lfont) <- drawingOfSvgDocument cache sizes dpi doc
+  let color = PixelRGBA8 0 0 0 0
+      img = R.renderDrawing (_drawWidth drawing) (_drawHeight drawing) color
+          $ _drawAction drawing
+  return (img, lfont)
+
+drawingOfSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
+                     -> IO (DrawResult, LoadedFonts)
+drawingOfSvgDocument cache sizes dpi doc = case sizes of
     Just s -> renderAtSize s
     Nothing -> renderAtSize $ documentSize dpi doc
   where
@@ -49,7 +74,6 @@ renderSvgDocument cache sizes dpi doc = case sizes of
         , _renderDpi = dpi
         , _subRender = renderSvgDocument cache Nothing dpi
         }
-    white = PixelRGBA8 255 255 255 255
 
     sizeFitter (V2 0 0, V2 vw vh) (actualWidth, actualHeight)
       | aw /= vw || vh /= ah =
@@ -66,8 +90,7 @@ renderSvgDocument cache sizes dpi doc = case sizes of
       let stateDraw = mapM (renderSvg emptyContext) $ _elements doc
       (elems, s) <- runStateT stateDraw mempty
       let drawing = sizeFitter box (w, h) $ sequence_ elems
-          img = R.renderDrawing w h white drawing
-      return (img, s)
+      return (DrawResult drawing w h, s)
 
 withInfo :: (Monad m, Monad m2)
          => (a -> Maybe b) -> a -> (b -> m (m2 ())) -> m (m2 ())
@@ -174,7 +197,6 @@ renderSvg initialContext = go initialContext initialAttr
              , _fillOpacity = Just 1.0
              , _fillRule = Last $ Just FillNonZero
              , _fontSize = Last . Just $ Num 16
-             , _fontFamily = Last $ Just ["Verdana"]
              , _textAnchor = Last $ Just TextAnchorStart
              }
 
