@@ -11,7 +11,8 @@ import Data.Maybe( fromMaybe  )
 import Control.Monad( foldM )
 import Control.Monad.Trans.State.Strict( runStateT )
 import Control.Applicative( (<$>) )
-import Codec.Picture( Image, PixelRGBA8( .. ) )
+import qualified Codec.Picture as CP
+import Codec.Picture( PixelRGBA8( .. ) )
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
@@ -43,7 +44,7 @@ data DrawResult = DrawResult
     }
 
 renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
-                  -> IO (Image PixelRGBA8, LoadedFonts)
+                  -> IO (CP.Image PixelRGBA8, LoadedFonts)
 renderSvgDocument cache sizes dpi doc = do
   (drawing, lfont) <- drawingOfSvgDocument cache sizes dpi doc
   let color = PixelRGBA8 0 0 0 0
@@ -224,7 +225,10 @@ renderSvg initialContext = go initialContext initialAttr
 
 
     go _ _ None = return mempty
-    go ctxt attr (TextArea tp stext) = renderText ctxt attr tp stext
+    go ctxt attr (TextTree tp stext) = renderText ctxt attr tp stext
+    go _ctxt _attr (ImageTree _) =
+        -- TODO: implement
+        return mempty
 
     go ctxt attr (UseTree useData (Just subTree)) = do
       sub <- go ctxt attr' subTree
@@ -292,7 +296,7 @@ renderSvg initialContext = go initialContext initialAttr
 
     go ctxt attr (PolyLineTree (PolyLine pAttr points)) =
       go ctxt (dropFillColor attr)
-            . Path . PathPrim (dropFillColor pAttr)
+            . PathTree . Path (dropFillColor pAttr)
             $ toPath points
       where
         dropFillColor v = v { _fillColor = Last Nothing }
@@ -303,7 +307,7 @@ renderSvg initialContext = go initialContext initialAttr
             ]
 
     go ctxt attr (PolygonTree (Polygon pAttr points)) =
-      go ctxt attr . Path . PathPrim pAttr $ toPath points
+      go ctxt attr . PathTree . Path pAttr $ toPath points
       where
         toPath [] = []
         toPath (x:xs) =
@@ -320,10 +324,10 @@ renderSvg initialContext = go initialContext initialAttr
       stroking <- stroker context' info $ R.line p1' p2'
       return $ withTransform pAttr stroking
 
-    go ctxt attr (Path (PathPrim pAttr path)) = do
+    go ctxt attr (PathTree (Path pAttr p)) = do
       let info = attr <> pAttr
-          strokePrimitives = svgPathToPrimitives False path
-          fillPrimitives = svgPathToPrimitives True path
+          strokePrimitives = svgPathToPrimitives False p
+          fillPrimitives = svgPathToPrimitives True p
       filling <- filler ctxt info fillPrimitives
       stroking <- stroker ctxt info strokePrimitives
       return . withTransform pAttr $ filling <> stroking

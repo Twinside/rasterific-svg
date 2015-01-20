@@ -25,8 +25,8 @@ import System.Directory( doesFileExist )
 import Graphics.Text.TrueType
 
 
-import Codec.Picture( Image
-                    , PixelRGBA8( .. )
+import qualified Codec.Picture as CP
+import Codec.Picture( PixelRGBA8( .. )
                     , writePng )
 
 {-import Graphics.Svg.CssParser-}
@@ -44,7 +44,7 @@ renderSvgDocument :: FontCache          -- ^ Structure used to access fonts
                   -> Maybe (Int, Int)   -- ^ Optional document size
                   -> Dpi                -- ^ Current resolution for text and elements
                   -> Document           -- ^ Svg document
-                  -> IO (Image PixelRGBA8, LoadedFonts)
+                  -> IO (CP.Image PixelRGBA8, LoadedFonts)
 renderSvgDocument cache size dpi =
     RR.renderSvgDocument cache size dpi . applyCSSRules . resolveUses
 

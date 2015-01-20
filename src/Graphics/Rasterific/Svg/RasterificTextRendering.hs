@@ -35,16 +35,16 @@ import Graphics.Rasterific.Svg.PathConverter
 {-import Text.Printf-}
 
 loadFont :: FilePath -> IODraw (Maybe Font)
-loadFont path = do
+loadFont fontPath = do
   loaded <- get
-  case M.lookup path loaded of
+  case M.lookup fontPath loaded of
     Just v -> return $ Just v
     Nothing -> do
-      file <- liftIO $ loadFontFile path
+      file <- liftIO $ loadFontFile fontPath
       case file of
         Left _ -> return Nothing
         Right f -> do
-          put $ M.insert path f loaded
+          put $ M.insert fontPath f loaded
           return $ Just f
 
 data RenderableString px = RenderableString
@@ -395,8 +395,8 @@ renderString ctxt mayPath anchor str = do
   textRanges <- mapM toFillTextRange str
 
   case mayPath of
-    Just (offset, path) ->
-        return . pathPlacer offset path $ fillOrders textRanges
+    Just (offset, tPath) ->
+        return . pathPlacer offset tPath $ fillOrders textRanges
     Nothing -> return . linePlacer $ fillOrders textRanges
   where
     fillOrders =
@@ -408,10 +408,10 @@ renderString ctxt mayPath anchor str = do
     V2 swidth sheight = floor <$> (maxi ^-^ mini)
     background = PixelRGBA8 0 0 0 0
 
-    pathPlacer offset path =
+    pathPlacer offset tPath =
         anchorStringRendering anchor
             . flip execState (initialLetterTransformerState str)
-            . drawOrdersOnPath (transformPlaceGlyph ctxt) offset 0 path
+            . drawOrdersOnPath (transformPlaceGlyph ctxt) offset 0 tPath
 
     linePlacer =
         anchorStringRendering anchor
@@ -432,10 +432,10 @@ startOffsetOfPath :: RenderContext -> DrawAttributes -> R.Path -> Number
                   -> Float
 startOffsetOfPath _ _ _ (Num i) = i
 startOffsetOfPath _ attr _ (Em i) = emTransform attr i
-startOffsetOfPath _ _ path (Percent p) =
-    p * RO.approximatePathLength path
-startOffsetOfPath ctxt attr path num =
-    startOffsetOfPath ctxt attr path $ stripUnits ctxt num
+startOffsetOfPath _ _ tPath (Percent p) =
+    p * RO.approximatePathLength tPath
+startOffsetOfPath ctxt attr tPath num =
+    startOffsetOfPath ctxt attr tPath $ stripUnits ctxt num
 
 renderText :: RenderContext
            -> DrawAttributes

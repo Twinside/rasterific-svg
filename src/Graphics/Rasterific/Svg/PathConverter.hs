@@ -15,7 +15,7 @@ import qualified Graphics.Rasterific as R
 import qualified Linear as L
 import Graphics.Svg.Types
 
-singularize :: [Path] -> [Path]
+singularize :: [PathCommand] -> [PathCommand]
 singularize = concatMap go
   where
    go (MoveTo _ []) = []
@@ -35,7 +35,7 @@ toR :: RPoint -> R.Point
 {-# INLINE toR #-}
 toR (L.V2 x y) = R.V2 x y
 
-svgPathToPrimitives :: Bool -> [Path] -> [R.Primitive]
+svgPathToPrimitives :: Bool -> [PathCommand] -> [R.Primitive]
 svgPathToPrimitives _ lst | isPathWithArc lst = []
 svgPathToPrimitives shouldClose lst
     | shouldClose && not (nearZero $ norm (lastPoint ^-^ firstPoint)) =
@@ -129,7 +129,7 @@ svgPathToPrimitives shouldClose lst
 
 
 -- | Conversion function between svg path to the rasterific one.
-svgPathToRasterificPath :: Bool -> [Path] -> R.Path
+svgPathToRasterificPath :: Bool -> [PathCommand] -> R.Path
 svgPathToRasterificPath shouldClose lst =
     R.Path firstPoint shouldClose $ concat commands
  where

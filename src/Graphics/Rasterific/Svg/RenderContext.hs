@@ -3,7 +3,8 @@ module Graphics.Rasterific.Svg.RenderContext where
 import Control.Monad.Trans.Class( lift )
 import Control.Monad.Trans.State.Strict( StateT )
 import Control.Applicative( (<$>) )
-import Codec.Picture( Image, PixelRGBA8( .. ) )
+import Codec.Picture( PixelRGBA8( .. ) )
+import qualified Codec.Picture as CP
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import Data.Monoid( Last( .. ) )
@@ -23,7 +24,7 @@ data RenderContext = RenderContext
     , _renderDpi          :: Int
     , _contextDefinitions :: M.Map String Element
     , _fontCache          :: FontCache
-    , _subRender          :: Document -> IO (Image PixelRGBA8, LoadedFonts)
+    , _subRender          :: Document -> IO (CP.Image PixelRGBA8, LoadedFonts)
     }
 
 type LoadedFonts = M.Map FilePath Font
