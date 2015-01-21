@@ -45,9 +45,9 @@ import Graphics.Rasterific.Svg.PathConverter
 import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.RasterificTextRendering
 
-import Debug.Trace
+{-import Debug.Trace-}
 {-import Text.Printf-}
-import Text.Groom
+{-import Text.Groom-}
 
 -- | Represent a Rasterific drawing with the associated
 -- image size.
@@ -251,7 +251,7 @@ imgToPixelRGBA8 img = case img of
 
 renderImage :: RenderContext -> DrawAttributes -> Image
             -> IODraw (R.Drawing PixelRGBA8 ())
-renderImage ctxt attr imgInfo = trace (groom imgInfo) $ do
+renderImage ctxt attr imgInfo = do
   let rootFolder = dropFileName $ _basePath ctxt
       realPath = rootFolder </> _imageHref imgInfo
   eimg <- liftIO $ readImage realPath 
