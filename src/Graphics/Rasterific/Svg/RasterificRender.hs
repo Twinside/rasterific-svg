@@ -13,6 +13,7 @@ import Control.Monad( foldM )
 import Control.Monad.IO.Class( liftIO )
 import Control.Monad.Trans.State.Strict( modify, runStateT )
 import Control.Applicative( (<$>) )
+import Control.Lens( (&), (.~) )
 import qualified Codec.Picture as CP
 import Codec.Picture( PixelRGBA8( .. )
                     , PixelRGB16( .. )
@@ -34,6 +35,7 @@ import Codec.Picture.Types( promoteImage
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
+import System.FilePath( (</>), dropFileName )
 import Graphics.Rasterific.Linear( V2( V2 ), (^-^), zero )
 import Graphics.Rasterific.Outline
 import qualified Graphics.Rasterific.Transformations as RT
@@ -43,9 +45,9 @@ import Graphics.Rasterific.Svg.PathConverter
 import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.RasterificTextRendering
 
-{-import Debug.Trace-}
+import Debug.Trace
 {-import Text.Printf-}
-{-import Text.Groom-}
+import Text.Groom
 
 -- | Represent a Rasterific drawing with the associated
 -- image size.
@@ -92,6 +94,7 @@ drawingOfSvgDocument cache sizes dpi doc = case sizes of
         , _fontCache = cache
         , _renderDpi = dpi
         , _subRender = subRenderer
+        , _basePath = _documentLocation doc
         }
 
     subRenderer subDoc = do
@@ -248,11 +251,14 @@ imgToPixelRGBA8 img = case img of
 
 renderImage :: RenderContext -> DrawAttributes -> Image
             -> IODraw (R.Drawing PixelRGBA8 ())
-renderImage ctxt attr imgInfo = do
-  eimg <- liftIO . readImage $ _imageHref imgInfo
+renderImage ctxt attr imgInfo = trace (groom imgInfo) $ do
+  let rootFolder = dropFileName $ _basePath ctxt
+      realPath = rootFolder </> _imageHref imgInfo
+  eimg <- liftIO $ readImage realPath 
   let srect = RectangleTree $ defaultSvg
         { _rectUpperLeftCorner = _imageCornerUpperLeft imgInfo
-        , _rectDrawAttributes = _imageDrawAttributes imgInfo
+        , _rectDrawAttributes =
+            _imageDrawAttributes imgInfo & fillColor .~ Last (Just FillNone)
         , _rectWidth = _imageWidth imgInfo
         , _rectHeight = _imageHeight imgInfo
         }

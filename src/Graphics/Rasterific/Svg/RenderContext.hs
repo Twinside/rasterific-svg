@@ -48,6 +48,7 @@ data RenderContext = RenderContext
     , _contextDefinitions :: M.Map String Element
     , _fontCache          :: FontCache
     , _subRender          :: Document -> IODraw (CP.Image PixelRGBA8)
+    , _basePath           :: FilePath
     }
 
 data LoadedElements = LoadedElements
@@ -235,8 +236,8 @@ fillAlphaCombine opacity (PixelRGBA8 r g b a) =
     a' = fromIntegral a / 255.0
     alpha = floor . max 0 . min 255 $ opacity * a' * 255
 
-documentOfPattern :: Pattern -> Document
-documentOfPattern pat = Document
+documentOfPattern :: Pattern -> String -> Document
+documentOfPattern pat loc = Document
     { _viewBox     = _patternViewBox pat
     , _width       = return $ _patternWidth pat
     , _height      = return $ _patternHeight pat
@@ -244,6 +245,7 @@ documentOfPattern pat = Document
     , _definitions = M.empty
     , _styleRules  = []
     , _description = ""
+    , _documentLocation = loc
     }
 
 prepareTexture :: RenderContext -> DrawAttributes
@@ -266,7 +268,7 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
       return . Just $ prepareRadialGradientTexture ctxt
                         attr grad opacity prims
     prepare (ElementPattern pat) = do
-      patternPicture <- _subRender ctxt $ documentOfPattern pat
+      patternPicture <- _subRender ctxt $ documentOfPattern pat (_basePath ctxt)
       return . Just . RT.withSampler R.SamplerRepeat
                     $ RT.sampledImageTexture patternPicture
 
