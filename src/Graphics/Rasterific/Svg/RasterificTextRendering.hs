@@ -8,13 +8,12 @@ import Control.Monad.Identity( Identity )
 import Control.Monad.Trans.State.Strict( execState
                                        , StateT
                                        , modify
-                                       , get
-                                       , put
                                        , gets )
 import Control.Applicative( (<$>), (<*>), (<|>) )
+import Control.Lens( at, (?=) )
+import qualified Control.Lens as L
 import Codec.Picture( PixelRGBA8( .. ) )
 import qualified Data.Foldable as F
-import qualified Data.Map as M
 import Data.Monoid( mappend, mempty, (<>), Last( .. ), First( .. ) )
 import Data.Maybe( fromMaybe )
 import qualified Data.Text as T
@@ -36,15 +35,15 @@ import Graphics.Rasterific.Svg.PathConverter
 
 loadFont :: FilePath -> IODraw (Maybe Font)
 loadFont fontPath = do
-  loaded <- get
-  case M.lookup fontPath loaded of
+  loaded <- L.use $ loadedFonts . at fontPath
+  case loaded of
     Just v -> return $ Just v
     Nothing -> do
       file <- liftIO $ loadFontFile fontPath
       case file of
         Left _ -> return Nothing
         Right f -> do
-          put $ M.insert fontPath f loaded
+          loadedFonts . at fontPath ?= f
           return $ Just f
 
 data RenderableString px = RenderableString

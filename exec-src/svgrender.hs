@@ -17,7 +17,7 @@ import Codec.Picture( writePng )
 
 import Graphics.Text.TrueType( FontCache )
 import Graphics.Rasterific.Svg
-import Graphics.Svg hiding ( text )
+import Graphics.Svg hiding ( text, path )
 {-import Debug.Trace-}
 {-import Text.Printf-}
 {-import Text.Groom-}

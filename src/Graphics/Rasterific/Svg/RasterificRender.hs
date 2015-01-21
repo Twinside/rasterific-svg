@@ -8,11 +8,29 @@ module Graphics.Rasterific.Svg.RasterificRender
 
 import Data.Monoid( Last( .. ), mempty, (<>) )
 import Data.Maybe( fromMaybe  )
+import Data.Word( Word8 )
 import Control.Monad( foldM )
-import Control.Monad.Trans.State.Strict( runStateT )
+import Control.Monad.IO.Class( liftIO )
+import Control.Monad.Trans.State.Strict( modify, runStateT )
 import Control.Applicative( (<$>) )
 import qualified Codec.Picture as CP
-import Codec.Picture( PixelRGBA8( .. ) )
+import Codec.Picture( PixelRGBA8( .. )
+                    , PixelRGB16( .. )
+                    , PixelRGBA16( .. )
+                    , PixelRGBF( .. )
+                    , PixelYA16( .. )
+                    , PixelCMYK8
+                    , PixelYCbCr8
+                    , PixelRGB8
+                    , DynamicImage( .. )
+                    , pixelMap
+                    , readImage
+                    )
+import Codec.Picture.Types( promoteImage
+                          , promotePixel
+                          , convertPixel
+                          )
+
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
@@ -44,16 +62,16 @@ data DrawResult = DrawResult
     }
 
 renderSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
-                  -> IO (CP.Image PixelRGBA8, LoadedFonts)
+                  -> IO (CP.Image PixelRGBA8, LoadedElements)
 renderSvgDocument cache sizes dpi doc = do
-  (drawing, lfont) <- drawingOfSvgDocument cache sizes dpi doc
+  (drawing, loaded) <- drawingOfSvgDocument cache sizes dpi doc
   let color = PixelRGBA8 0 0 0 0
       img = R.renderDrawing (_drawWidth drawing) (_drawHeight drawing) color
           $ _drawAction drawing
-  return (img, lfont)
+  return (img, loaded)
 
 drawingOfSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
-                     -> IO (DrawResult, LoadedFonts)
+                     -> IO (DrawResult, LoadedElements)
 drawingOfSvgDocument cache sizes dpi doc = case sizes of
     Just s -> renderAtSize s
     Nothing -> renderAtSize $ documentSize dpi doc
@@ -73,8 +91,14 @@ drawingOfSvgDocument cache sizes dpi doc = case sizes of
         , _contextDefinitions = _definitions doc
         , _fontCache = cache
         , _renderDpi = dpi
-        , _subRender = renderSvgDocument cache Nothing dpi
+        , _subRender = subRenderer
         }
+
+    subRenderer subDoc = do
+       (drawing, loaded) <-
+           liftIO $ renderSvgDocument cache Nothing dpi subDoc
+       modify (<> loaded)
+       return drawing
 
     sizeFitter (V2 0 0, V2 vw vh) (actualWidth, actualHeight)
       | aw /= vw || vh /= ah =
@@ -185,8 +209,69 @@ geometryOfNamedElement ctxt str =
       ElementMarker _ -> None
       ElementGeometry g -> g
 
+imgToPixelRGBA8 :: DynamicImage -> CP.Image PixelRGBA8
+imgToPixelRGBA8 img = case img of
+  ImageY8 i -> promoteImage i
+  ImageY16 i ->
+    pixelMap (\y -> let v = w2b y in PixelRGBA8 v v v 255) i
+  ImageYF i ->
+    pixelMap (\f -> let v = f2b f in PixelRGBA8 v v v 255) i
+  ImageYA8 i -> promoteImage i
+  ImageYA16 i ->
+      pixelMap (\(PixelYA16 y a) -> let v = w2b y in PixelRGBA8 v v v (w2b a)) i
+  ImageRGB8 i -> promoteImage i
+  ImageRGB16 i -> pixelMap rgb162Rgba8 i
+  ImageRGBF i -> pixelMap rgbf2rgba8 i
+  ImageRGBA8 i -> i
+  ImageRGBA16 i -> pixelMap rgba162Rgba8 i
+  ImageYCbCr8 i -> pixelMap (promotePixel . yCbCr2Rgb) i
+  ImageCMYK8 i -> pixelMap (promotePixel . cmyk2Rgb) i
+  ImageCMYK16 i -> pixelMap (rgb162Rgba8 . convertPixel) i
+  where
+    yCbCr2Rgb :: PixelYCbCr8 -> PixelRGB8
+    yCbCr2Rgb = convertPixel
+
+    cmyk2Rgb :: PixelCMYK8 -> PixelRGB8
+    cmyk2Rgb = convertPixel
+
+    w2b v = fromIntegral $ v `div` 257
+    f2b :: Float -> Word8
+    f2b v = floor . max 0 . min 255 $ v * 255
+
+    rgbf2rgba8 (PixelRGBF r g b) =
+      PixelRGBA8 (f2b r) (f2b g) (f2b b) 255
+    rgba162Rgba8 (PixelRGBA16 r g b a) =
+      PixelRGBA8 (w2b r) (w2b g) (w2b b) (w2b a)
+    rgb162Rgba8 (PixelRGB16 r g b)=
+      PixelRGBA8 (w2b r) (w2b g) (w2b b) 255
+
+
+renderImage :: RenderContext -> DrawAttributes -> Image
+            -> IODraw (R.Drawing PixelRGBA8 ())
+renderImage ctxt attr imgInfo = do
+  eimg <- liftIO . readImage $ _imageHref imgInfo
+  let srect = RectangleTree $ defaultSvg
+        { _rectUpperLeftCorner = _imageCornerUpperLeft imgInfo
+        , _rectDrawAttributes = _imageDrawAttributes imgInfo
+        , _rectWidth = _imageWidth imgInfo
+        , _rectHeight = _imageHeight imgInfo
+        }
+
+  case eimg of
+    Left _ -> renderTree ctxt attr srect
+    Right img -> do
+      let pAttr = _imageDrawAttributes imgInfo
+          info = attr <> pAttr
+          context' = mergeContext ctxt pAttr
+          p' = linearisePoint context' info $ _imageCornerUpperLeft imgInfo
+          w' = lineariseXLength context' info $ _imageWidth imgInfo
+          h' = lineariseYLength context' info $ _imageHeight imgInfo
+          filling = R.drawImageAtSize (imgToPixelRGBA8 img) 0 p' w' h'
+      stroking <- stroker context' info $ R.rectangle p' w' h'
+      return . withTransform pAttr $ filling <> stroking
+
 renderSvg :: RenderContext -> Tree -> IODraw (R.Drawing PixelRGBA8 ())
-renderSvg initialContext = go initialContext initialAttr
+renderSvg initialContext = renderTree initialContext initialAttr
   where
     initialAttr =
       mempty { _strokeWidth = Last . Just $ Num 1.0
@@ -201,35 +286,36 @@ renderSvg initialContext = go initialContext initialAttr
              , _textAnchor = Last $ Just TextAnchorStart
              }
 
-    fitUse ctxt attr uses subTree =
-      let origin = linearisePoint ctxt attr $ _useBase uses
-          w = lineariseXLength ctxt attr <$> _useWidth uses
-          h = lineariseYLength ctxt attr <$> _useHeight uses
+fitUse :: RenderContext -> DrawAttributes -> Use -> Tree -> R.Drawing px ()
+       -> R.Drawing px ()
+fitUse ctxt attr uses subTree =
+  let origin = linearisePoint ctxt attr $ _useBase uses
+      w = lineariseXLength ctxt attr <$> _useWidth uses
+      h = lineariseYLength ctxt attr <$> _useHeight uses
+  in
+  case viewBoxOfTree subTree of
+    Nothing -> R.withTransformation (RT.translate origin)
+    (Just (xs, ys, xe, ye)) ->
+      let boxOrigin = V2 (fromIntegral xs) (fromIntegral ys)
+          boxEnd = V2 (fromIntegral xe) (fromIntegral ye)
+          V2 bw bh = abs $ boxEnd ^-^ boxOrigin
+          xScaleFactor = case w of
+            Just wpx -> wpx / bw
+            Nothing -> 1.0
+          yScaleFactor = case h of
+            Just hpx -> hpx / bh
+            Nothing -> 1.0
       in
-      case viewBoxOfTree subTree of
-        Nothing -> R.withTransformation (RT.translate origin)
-        (Just (xs, ys, xe, ye)) ->
-          let boxOrigin = V2 (fromIntegral xs) (fromIntegral ys)
-              boxEnd = V2 (fromIntegral xe) (fromIntegral ye)
-              V2 bw bh = abs $ boxEnd ^-^ boxOrigin
-              xScaleFactor = case w of
-                Just wpx -> wpx / bw
-                Nothing -> 1.0
-              yScaleFactor = case h of
-                Just hpx -> hpx / bh
-                Nothing -> 1.0
-          in
-          R.withTransformation $ RT.translate origin
-                              <> RT.scale xScaleFactor yScaleFactor
-                              <> RT.translate (negate boxOrigin)
+      R.withTransformation $ RT.translate origin
+                          <> RT.scale xScaleFactor yScaleFactor
+                          <> RT.translate (negate boxOrigin)
 
 
+renderTree :: RenderContext -> DrawAttributes -> Tree -> IODraw (R.Drawing PixelRGBA8 ())
+renderTree = go where
     go _ _ None = return mempty
     go ctxt attr (TextTree tp stext) = renderText ctxt attr tp stext
-    go _ctxt _attr (ImageTree _) =
-        -- TODO: implement
-        return mempty
-
+    go ctxt attr (ImageTree i) = renderImage ctxt attr i
     go ctxt attr (UseTree useData (Just subTree)) = do
       sub <- go ctxt attr' subTree
       return . fitUse ctxt attr useData subTree

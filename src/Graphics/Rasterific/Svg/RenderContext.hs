@@ -1,6 +1,28 @@
-module Graphics.Rasterific.Svg.RenderContext where
+module Graphics.Rasterific.Svg.RenderContext
+    ( RenderContext( .. )
+    , LoadedElements( .. )
+    , loadedFonts
+    , loadedImages
+    , IODraw
+    , ViewBox
+    , toRadian
+    , capOfSvg
+    , joinOfSvg 
+    , stripUnits
+    , boundingBoxLength
+    , lineariseXLength
+    , lineariseYLength
+    , linearisePoint
+    , lineariseLength
+    , prepareTexture
+    , documentOfPattern
+    , fillAlphaCombine
+    , fillMethodOfSvg
+    , emTransform
+    )
+    where
 
-import Control.Monad.Trans.Class( lift )
+import Data.Monoid( Monoid( .. ) )
 import Control.Monad.Trans.State.Strict( StateT )
 import Control.Applicative( (<$>) )
 import Codec.Picture( PixelRGBA8( .. ) )
@@ -8,6 +30,7 @@ import qualified Codec.Picture as CP
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import Data.Monoid( Last( .. ) )
+import Control.Lens( Lens', lens )
 
 import Graphics.Rasterific.Linear( (^-^) )
 import qualified Graphics.Rasterific as R
@@ -24,12 +47,26 @@ data RenderContext = RenderContext
     , _renderDpi          :: Int
     , _contextDefinitions :: M.Map String Element
     , _fontCache          :: FontCache
-    , _subRender          :: Document -> IO (CP.Image PixelRGBA8, LoadedFonts)
+    , _subRender          :: Document -> IODraw (CP.Image PixelRGBA8)
     }
 
-type LoadedFonts = M.Map FilePath Font
+data LoadedElements = LoadedElements
+    { _loadedFonts  :: M.Map FilePath Font
+    , _loadedImages :: M.Map FilePath (CP.Image PixelRGBA8)
+    }
 
-type IODraw = StateT LoadedFonts IO
+instance Monoid LoadedElements where
+  mempty = LoadedElements mempty mempty
+  mappend (LoadedElements a b) (LoadedElements a' b') =
+      LoadedElements (a `mappend` a') (b `mappend` b')
+
+loadedFonts :: Lens' LoadedElements (M.Map FilePath Font)
+loadedFonts = lens _loadedFonts (\a b -> a { _loadedFonts = b })
+
+loadedImages :: Lens' LoadedElements (M.Map FilePath (CP.Image PixelRGBA8))
+loadedImages = lens _loadedImages (\a b -> a { _loadedImages = b })
+
+type IODraw = StateT LoadedElements IO
 
 type ViewBox = (R.Point, R.Point)
 
@@ -229,7 +266,7 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
       return . Just $ prepareRadialGradientTexture ctxt
                         attr grad opacity prims
     prepare (ElementPattern pat) = do
-      (patternPicture, _) <- lift . _subRender ctxt $ documentOfPattern pat
+      patternPicture <- _subRender ctxt $ documentOfPattern pat
       return . Just . RT.withSampler R.SamplerRepeat
                     $ RT.sampledImageTexture patternPicture
 
