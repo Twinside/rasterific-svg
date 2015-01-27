@@ -6,7 +6,7 @@ module Graphics.Rasterific.Svg.RasterificRender
     , drawingOfSvgDocument
     ) where
 
-import Data.Monoid( Last( .. ), mempty, (<>) )
+import Data.Monoid( Last( .. ), mempty, mconcat, (<>) )
 import Data.Maybe( fromMaybe  )
 import Data.Word( Word8 )
 import Control.Monad( foldM )
@@ -45,9 +45,9 @@ import Graphics.Rasterific.Svg.PathConverter
 import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.RasterificTextRendering
 
-{-import Debug.Trace-}
+import Debug.Trace
+import Text.Groom
 {-import Text.Printf-}
-{-import Text.Groom-}
 
 -- | Represent a Rasterific drawing with the associated
 -- image size.
@@ -171,9 +171,39 @@ filler ctxt info primitives =
     let opacity = fromMaybe 1.0 $ _fillOpacity info in
     withSvgTexture ctxt info svgTexture opacity primitives
 
-stroker :: RenderContext -> DrawAttributes -> [R.Primitive]
+clearMarkers :: DrawAttributes -> DrawAttributes
+clearMarkers att = att
+    { _markerEnd = Last Nothing
+    , _markerMid = Last Nothing
+    , _markerStart = Last Nothing
+    }
+
+drawEndMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
+              -> IODraw (R.Drawing PixelRGBA8 ())
+drawEndMarker ctxt info prims =
+  withInfo (getLast . _markerEnd) info $ \markerName ->
+    case (markerElem markerName, lastTransformation prims) of
+      (Nothing, _) -> return mempty
+      (_, Nothing) -> return mempty
+      (Just (ElementMarker mark), Just trans) -> trace (groom trans) $ do
+        let info' = clearMarkers info
+        markerGeometry <- mapM (renderTree ctxt info') $ _markerElements mark
+        return . R.withTransformation trans $ mconcat markerGeometry
+      _ -> return mempty
+  where
+    markerElem MarkerNone = Nothing
+    markerElem (MarkerRef markerName) =
+        M.lookup markerName $ _contextDefinitions ctxt
+
+    lastTransformation [] = Nothing
+    lastTransformation lst = Just $ RT.translate pp <> RT.toNewXBase orient where
+      prim = last lst
+      pp = R.lastPointOf prim
+      orient = R.lastTangeantOf prim
+
+stroker :: Bool -> RenderContext -> DrawAttributes -> [R.Primitive]
         -> IODraw (R.Drawing PixelRGBA8 ())
-stroker ctxt info primitives =
+stroker withMarker ctxt info primitives =
   withInfo (getLast . _strokeWidth) info $ \swidth ->
     withInfo (getLast . _strokeColor) info $ \svgTexture ->
       let toFloat = lineariseLength ctxt info
@@ -191,8 +221,11 @@ stroker ctxt info primitives =
            (acc <>) <$>
                withSvgTexture ctxt info svgTexture opacity prims
             
-      in
-      foldM strokerAction mempty primsList
+      in do
+        geom <-
+          if withMarker then drawEndMarker ctxt info primitives else return mempty
+        final <- foldM strokerAction mempty primsList
+        return (final <> geom)
 
 mergeContext :: RenderContext -> DrawAttributes -> RenderContext
 mergeContext ctxt _attr = ctxt
@@ -273,7 +306,7 @@ renderImage ctxt attr imgInfo = do
           w' = lineariseXLength context' info $ _imageWidth imgInfo
           h' = lineariseYLength context' info $ _imageHeight imgInfo
           filling = R.drawImageAtSize (imgToPixelRGBA8 img) 0 p' w' h'
-      stroking <- stroker context' info $ R.rectangle p' w' h'
+      stroking <- stroker False context' info $ R.rectangle p' w' h'
       return . withTransform pAttr $ filling <> stroking
 
 renderSvg :: RenderContext -> Tree -> IODraw (R.Drawing PixelRGBA8 ())
@@ -292,14 +325,17 @@ renderSvg initialContext = renderTree initialContext initialAttr
              , _textAnchor = Last $ Just TextAnchorStart
              }
 
-fitUse :: RenderContext -> DrawAttributes -> Use -> Tree -> R.Drawing px ()
+fitBox :: RenderContext -> DrawAttributes
+       -> Point -> Maybe Number -> Maybe Number
+       -> Maybe (Int, Int, Int, Int)
        -> R.Drawing px ()
-fitUse ctxt attr uses subTree =
-  let origin = linearisePoint ctxt attr $ _useBase uses
-      w = lineariseXLength ctxt attr <$> _useWidth uses
-      h = lineariseYLength ctxt attr <$> _useHeight uses
+       -> R.Drawing px ()
+fitBox ctxt attr basePoint mwidth mheight viewbox =
+  let origin = linearisePoint ctxt attr basePoint
+      w = lineariseXLength ctxt attr <$> mwidth
+      h = lineariseYLength ctxt attr <$> mheight
   in
-  case viewBoxOfTree subTree of
+  case viewbox of
     Nothing -> R.withTransformation (RT.translate origin)
     (Just (xs, ys, xe, ye)) ->
       let boxOrigin = V2 (fromIntegral xs) (fromIntegral ys)
@@ -316,6 +352,15 @@ fitUse ctxt attr uses subTree =
                           <> RT.scale xScaleFactor yScaleFactor
                           <> RT.translate (negate boxOrigin)
 
+fitUse :: RenderContext -> DrawAttributes -> Use -> Tree
+       -> R.Drawing px ()
+       -> R.Drawing px ()
+fitUse ctxt attr useElement subTree =
+  fitBox ctxt attr
+    (_useBase useElement)
+    (_useWidth useElement)
+    (_useHeight useElement)
+    (viewBoxOfTree subTree)
 
 renderTree :: RenderContext -> DrawAttributes -> Tree -> IODraw (R.Drawing PixelRGBA8 ())
 renderTree = go where
@@ -362,7 +407,7 @@ renderTree = go where
             (vx, vy) -> R.roundedRectangle p' w' h' vx vy
 
       filling <- filler context' info rect
-      stroking <- stroker context' info rect
+      stroking <- stroker False context' info rect
       return . withTransform pAttr $ filling <> stroking
 
     go ctxt attr (CircleTree (Circle pAttr p r)) = do
@@ -372,7 +417,7 @@ renderTree = go where
           r' = lineariseLength context' info r
           c = R.circle p' r'
       filling <- filler context' info c
-      stroking <- stroker context' info c
+      stroking <- stroker False context' info c
       return . withTransform pAttr $ filling <> stroking
 
     go ctxt attr (EllipseTree (Ellipse pAttr p rx ry)) = do
@@ -383,7 +428,7 @@ renderTree = go where
           ry' = lineariseYLength context' info ry
           c = R.ellipse p' rx' ry'
       filling <- filler context' info c
-      stroking <- stroker context' info c
+      stroking <- stroker False context' info c
       return . withTransform pAttr $ filling <> stroking
 
     go ctxt attr (PolyLineTree (PolyLine pAttr points)) =
@@ -413,7 +458,7 @@ renderTree = go where
           context' = mergeContext ctxt pAttr
           p1' = linearisePoint context' info p1
           p2' = linearisePoint context' info p2
-      stroking <- stroker context' info $ R.line p1' p2'
+      stroking <- stroker True context' info $ R.line p1' p2'
       return $ withTransform pAttr stroking
 
     go ctxt attr (PathTree (Path pAttr p)) = do
@@ -421,6 +466,6 @@ renderTree = go where
           strokePrimitives = svgPathToPrimitives False p
           fillPrimitives = svgPathToPrimitives True p
       filling <- filler ctxt info fillPrimitives
-      stroking <- stroker ctxt info strokePrimitives
+      stroking <- stroker True ctxt info strokePrimitives
       return . withTransform pAttr $ filling <> stroking
 
