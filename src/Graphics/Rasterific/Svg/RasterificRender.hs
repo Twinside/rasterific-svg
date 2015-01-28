@@ -36,7 +36,7 @@ import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
 import System.FilePath( (</>), dropFileName )
-import Graphics.Rasterific.Linear( V2( V2 ), (^-^), zero )
+import Graphics.Rasterific.Linear( V2( V2 ), (^+^), (^-^), zero )
 import Graphics.Rasterific.Outline
 import qualified Graphics.Rasterific.Transformations as RT
 import Graphics.Text.TrueType
@@ -45,8 +45,8 @@ import Graphics.Rasterific.Svg.PathConverter
 import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.RasterificTextRendering
 
-import Debug.Trace
-import Text.Groom
+{-import Debug.Trace-}
+{-import Text.Groom-}
 {-import Text.Printf-}
 
 -- | Represent a Rasterific drawing with the associated
@@ -171,32 +171,64 @@ filler ctxt info primitives =
     let opacity = fromMaybe 1.0 $ _fillOpacity info in
     withSvgTexture ctxt info svgTexture opacity primitives
 
-clearMarkers :: DrawAttributes -> DrawAttributes
-clearMarkers att = att
-    { _markerEnd = Last Nothing
-    , _markerMid = Last Nothing
-    , _markerStart = Last Nothing
-    }
 
-drawEndMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
-              -> IODraw (R.Drawing PixelRGBA8 ())
-drawEndMarker ctxt info prims =
+drawMarker :: (R.Drawing PixelRGBA8 () -> [R.Primitive] -> R.Drawing PixelRGBA8 ())
+           -> RenderContext -> DrawAttributes -> [R.Primitive]
+           -> IODraw (R.Drawing PixelRGBA8 ())
+drawMarker placer ctxt info prims =
   withInfo (getLast . _markerEnd) info $ \markerName ->
-    case (markerElem markerName, lastTransformation prims) of
-      (Nothing, _) -> return mempty
-      (_, Nothing) -> return mempty
-      (Just (ElementMarker mark), Just trans) -> trace (groom trans) $ do
-        let info' = clearMarkers info
-        markerGeometry <- mapM (renderTree ctxt info') $ _markerElements mark
-        return . R.withTransformation trans $ mconcat markerGeometry
-      _ -> return mempty
+    case markerElem markerName of
+      Nothing -> return mempty
+      Just (ElementMarker mark) -> do
+        markerGeometry <- mapM (renderTree ctxt initialDrawAttributes)
+                        $ _markerElements mark
+        let fittedGeometry = fit mark $ mconcat markerGeometry
+        return $ placer fittedGeometry prims
+      Just _ -> return mempty
   where
     markerElem MarkerNone = Nothing
     markerElem (MarkerRef markerName) =
         M.lookup markerName $ _contextDefinitions ctxt
 
-    lastTransformation [] = Nothing
-    lastTransformation lst = Just $ RT.translate pp <> RT.toNewXBase orient where
+    units =
+      fromMaybe MarkerUnitStrokeWidth . _markerUnits
+
+    toNumber n = case toUserUnit (_renderDpi ctxt) n of
+       Num a -> a
+       _ -> 1.0
+
+    toStrokeSize n = do
+      sw <- toNumber <$> getLast (_strokeWidth info)
+      v <- toNumber <$> n
+      return . Num $ sw * v
+
+    negatePoint (a, b) =
+        (mapNumber negate a, mapNumber negate b)
+
+    fit markerInfo = case units markerInfo of
+       MarkerUnitUserSpaceOnUse ->
+         fitBox ctxt info
+           (Num 0, Num 0)
+           (_markerWidth markerInfo)
+           (_markerHeight markerInfo)
+           (negatePoint $ _markerRefPoint markerInfo)
+           (_markerViewBox markerInfo)
+
+       MarkerUnitStrokeWidth ->
+         fitBox ctxt info
+           (Num 0, Num 0)
+           (toStrokeSize $ _markerWidth markerInfo)
+           (toStrokeSize $ _markerHeight markerInfo)
+           (negatePoint $ _markerRefPoint markerInfo)
+           (_markerViewBox markerInfo)
+
+drawEndMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
+              -> IODraw (R.Drawing PixelRGBA8 ())
+drawEndMarker = drawMarker transformLast where
+  transformLast    _ [] = return ()
+  transformLast geom lst =
+      R.withTransformation (RT.translate pp <> RT.toNewXBase orient) geom
+    where
       prim = last lst
       pp = R.lastPointOf prim
       orient = R.lastTangeantOf prim
@@ -309,29 +341,33 @@ renderImage ctxt attr imgInfo = do
       stroking <- stroker False context' info $ R.rectangle p' w' h'
       return . withTransform pAttr $ filling <> stroking
 
+initialDrawAttributes :: DrawAttributes
+initialDrawAttributes = mempty
+  { _strokeWidth = Last . Just $ Num 1.0
+  , _strokeLineCap = Last $ Just CapButt
+  , _strokeLineJoin = Last $ Just JoinMiter
+  , _strokeMiterLimit = Last $ Just 4.0
+  , _strokeOpacity = Just 1.0
+  , _fillColor = Last . Just . ColorRef $ PixelRGBA8 0 0 0 255
+  , _fillOpacity = Just 1.0
+  , _fillRule = Last $ Just FillNonZero
+  , _fontSize = Last . Just $ Num 16
+  , _textAnchor = Last $ Just TextAnchorStart
+  }
+
+
 renderSvg :: RenderContext -> Tree -> IODraw (R.Drawing PixelRGBA8 ())
-renderSvg initialContext = renderTree initialContext initialAttr
-  where
-    initialAttr =
-      mempty { _strokeWidth = Last . Just $ Num 1.0
-             , _strokeLineCap = Last $ Just CapButt
-             , _strokeLineJoin = Last $ Just JoinMiter
-             , _strokeMiterLimit = Last $ Just 4.0
-             , _strokeOpacity = Just 1.0
-             , _fillColor = Last . Just . ColorRef $ PixelRGBA8 0 0 0 255
-             , _fillOpacity = Just 1.0
-             , _fillRule = Last $ Just FillNonZero
-             , _fontSize = Last . Just $ Num 16
-             , _textAnchor = Last $ Just TextAnchorStart
-             }
+renderSvg initialContext = renderTree initialContext initialDrawAttributes
+
 
 fitBox :: RenderContext -> DrawAttributes
-       -> Point -> Maybe Number -> Maybe Number
+       -> Point -> Maybe Number -> Maybe Number -> Point
        -> Maybe (Int, Int, Int, Int)
        -> R.Drawing px ()
        -> R.Drawing px ()
-fitBox ctxt attr basePoint mwidth mheight viewbox =
+fitBox ctxt attr basePoint mwidth mheight preTranslate viewbox =
   let origin = linearisePoint ctxt attr basePoint
+      preShift = linearisePoint ctxt attr preTranslate
       w = lineariseXLength ctxt attr <$> mwidth
       h = lineariseYLength ctxt attr <$> mheight
   in
@@ -350,7 +386,7 @@ fitBox ctxt attr basePoint mwidth mheight viewbox =
       in
       R.withTransformation $ RT.translate origin
                           <> RT.scale xScaleFactor yScaleFactor
-                          <> RT.translate (negate boxOrigin)
+                          <> RT.translate (negate boxOrigin ^+^ preShift)
 
 fitUse :: RenderContext -> DrawAttributes -> Use -> Tree
        -> R.Drawing px ()
@@ -360,6 +396,7 @@ fitUse ctxt attr useElement subTree =
     (_useBase useElement)
     (_useWidth useElement)
     (_useHeight useElement)
+    (Num 0, Num 0)
     (viewBoxOfTree subTree)
 
 renderTree :: RenderContext -> DrawAttributes -> Tree -> IODraw (R.Drawing PixelRGBA8 ())
