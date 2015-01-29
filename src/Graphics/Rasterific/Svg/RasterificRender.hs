@@ -172,23 +172,30 @@ filler ctxt info primitives =
     withSvgTexture ctxt info svgTexture opacity primitives
 
 
-drawMarker :: (R.Drawing PixelRGBA8 () -> [R.Primitive] -> R.Drawing PixelRGBA8 ())
+drawMarker :: (DrawAttributes -> Last MarkerAttribute)
+           -> (R.Drawing PixelRGBA8 () -> Bool -> [R.Primitive] -> R.Drawing PixelRGBA8 ())
            -> RenderContext -> DrawAttributes -> [R.Primitive]
            -> IODraw (R.Drawing PixelRGBA8 ())
-drawMarker placer ctxt info prims =
-  withInfo (getLast . _markerEnd) info $ \markerName ->
+drawMarker accessor placer ctxt info prims =
+  withInfo (getLast . accessor) info $ \markerName ->
     case markerElem markerName of
       Nothing -> return mempty
       Just (ElementMarker mark) -> do
-        markerGeometry <- mapM (renderTree ctxt initialDrawAttributes)
+        let subInfo = initialDrawAttributes <> _markerDrawAttributes mark
+        markerGeometry <- mapM (renderTree ctxt subInfo)
                         $ _markerElements mark
         let fittedGeometry = fit mark $ mconcat markerGeometry
-        return $ placer fittedGeometry prims
+        return $ placer fittedGeometry (shouldOrient mark) prims
       Just _ -> return mempty
   where
     markerElem MarkerNone = Nothing
     markerElem (MarkerRef markerName) =
         M.lookup markerName $ _contextDefinitions ctxt
+
+    shouldOrient m = case _markerOrient m of
+       Just OrientationAuto -> True
+       Nothing -> False
+       Just (OrientationAngle _) -> False
 
     units =
       fromMaybe MarkerUnitStrokeWidth . _markerUnits
@@ -224,14 +231,27 @@ drawMarker placer ctxt info prims =
 
 drawEndMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
               -> IODraw (R.Drawing PixelRGBA8 ())
-drawEndMarker = drawMarker transformLast where
-  transformLast    _ [] = return ()
-  transformLast geom lst =
-      R.withTransformation (RT.translate pp <> RT.toNewXBase orient) geom
+drawEndMarker = drawMarker _markerEnd transformLast where
+  transformLast    _ _ [] = return ()
+  transformLast geom shouldOrient lst
+    | shouldOrient = R.withTransformation (RT.translate pp <> RT.toNewXBase orient) geom
+    | otherwise = R.withTransformation (RT.translate pp) geom
     where
       prim = last lst
       pp = R.lastPointOf prim
       orient = R.lastTangeantOf prim
+
+drawStartMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
+                -> IODraw (R.Drawing PixelRGBA8 ())
+drawStartMarker = drawMarker _markerStart transformStart where
+  transformStart    _ _ [] = return ()
+  transformStart geom shouldOrient (prim:_)
+    | shouldOrient = R.withTransformation (RT.translate pp <> RT.toNewXBase orient) geom
+    | otherwise =  R.withTransformation (RT.translate pp) geom
+    where
+      pp = R.firstPointOf prim
+      orient = R.firstTangeantOf prim
+
 
 stroker :: Bool -> RenderContext -> DrawAttributes -> [R.Primitive]
         -> IODraw (R.Drawing PixelRGBA8 ())
@@ -255,7 +275,11 @@ stroker withMarker ctxt info primitives =
             
       in do
         geom <-
-          if withMarker then drawEndMarker ctxt info primitives else return mempty
+          if withMarker then do
+            start <- drawStartMarker ctxt info primitives
+            end <- drawEndMarker ctxt info primitives
+            return $ start <> end
+          else return mempty
         final <- foldM strokerAction mempty primsList
         return (final <> geom)
 
