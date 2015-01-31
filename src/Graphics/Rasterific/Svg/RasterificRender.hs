@@ -36,7 +36,7 @@ import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
 import System.FilePath( (</>), dropFileName )
-import Graphics.Rasterific.Linear( V2( V2 ), (^+^), (^-^), zero )
+import Graphics.Rasterific.Linear( V2( V2 ), (^+^), (^-^), (^*), zero )
 import Graphics.Rasterific.Outline
 import qualified Graphics.Rasterific.Transformations as RT
 import Graphics.Text.TrueType
@@ -253,10 +253,12 @@ drawMidMarker = drawMarker _markerMid transformStart where
   transformStart geom shouldOrient = go where
     go [] = return ()
     go [_] = return ()
-    go (prim:rest) = R.withTransformation trans geom >> go rest
+    go (prim:rest@(p2:_)) = R.withTransformation trans geom >> go rest
       where
         pp = R.lastPointOf prim
-        orient = R.lastTangeantOf prim
+        prevOrient = R.lastTangeantOf prim
+        nextOrient = R.firstTangeantOf p2
+        orient = (prevOrient ^+^ nextOrient) ^* 0.5
         trans | shouldOrient = RT.translate pp <> RT.toNewXBase orient
               | otherwise = RT.translate pp
 

@@ -17,4 +17,5 @@ The implementation also implements feature from SVG 1.1 like:
    low support for Unicode, right to left and vertical text.
  * CSS Styling, using CSS2 styling engine.
  * `pattern` element handling
+ * `marker` element hadnling
 
