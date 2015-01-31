@@ -184,7 +184,7 @@ drawMarker accessor placer ctxt info prims =
         let subInfo = initialDrawAttributes <> _markerDrawAttributes mark
         markerGeometry <- mapM (renderTree ctxt subInfo)
                         $ _markerElements mark
-        let fittedGeometry = fit mark $ mconcat markerGeometry
+        let fittedGeometry = baseOrientation mark . fit mark $ mconcat markerGeometry
         return $ placer fittedGeometry (shouldOrient mark) prims
       Just _ -> return mempty
   where
@@ -196,6 +196,12 @@ drawMarker accessor placer ctxt info prims =
        Just OrientationAuto -> True
        Nothing -> False
        Just (OrientationAngle _) -> False
+
+    baseOrientation m = case _markerOrient m of
+       Nothing -> id
+       Just OrientationAuto -> id
+       Just (OrientationAngle a) -> 
+         R.withTransformation (RT.rotate $ toRadian a)
 
     units =
       fromMaybe MarkerUnitStrokeWidth . _markerUnits
@@ -233,24 +239,37 @@ drawEndMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
               -> IODraw (R.Drawing PixelRGBA8 ())
 drawEndMarker = drawMarker _markerEnd transformLast where
   transformLast    _ _ [] = return ()
-  transformLast geom shouldOrient lst
-    | shouldOrient = R.withTransformation (RT.translate pp <> RT.toNewXBase orient) geom
-    | otherwise = R.withTransformation (RT.translate pp) geom
+  transformLast geom shouldOrient lst = R.withTransformation trans geom
     where
       prim = last lst
       pp = R.lastPointOf prim
       orient = R.lastTangeantOf prim
+      trans | shouldOrient = RT.translate pp <> RT.toNewXBase orient
+            | otherwise = RT.translate pp
+
+drawMidMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
+               -> IODraw (R.Drawing PixelRGBA8 ())
+drawMidMarker = drawMarker _markerMid transformStart where
+  transformStart geom shouldOrient = go where
+    go [] = return ()
+    go [_] = return ()
+    go (prim:rest) = R.withTransformation trans geom >> go rest
+      where
+        pp = R.lastPointOf prim
+        orient = R.lastTangeantOf prim
+        trans | shouldOrient = RT.translate pp <> RT.toNewXBase orient
+              | otherwise = RT.translate pp
 
 drawStartMarker :: RenderContext -> DrawAttributes -> [R.Primitive]
                 -> IODraw (R.Drawing PixelRGBA8 ())
 drawStartMarker = drawMarker _markerStart transformStart where
   transformStart    _ _ [] = return ()
-  transformStart geom shouldOrient (prim:_)
-    | shouldOrient = R.withTransformation (RT.translate pp <> RT.toNewXBase orient) geom
-    | otherwise =  R.withTransformation (RT.translate pp) geom
+  transformStart geom shouldOrient (prim:_) = R.withTransformation trans geom
     where
       pp = R.firstPointOf prim
       orient = R.firstTangeantOf prim
+      trans | shouldOrient = RT.translate pp <> RT.toNewXBase orient
+            | otherwise = RT.translate pp
 
 
 stroker :: Bool -> RenderContext -> DrawAttributes -> [R.Primitive]
@@ -277,8 +296,9 @@ stroker withMarker ctxt info primitives =
         geom <-
           if withMarker then do
             start <- drawStartMarker ctxt info primitives
+            mid <- drawMidMarker ctxt info primitives
             end <- drawEndMarker ctxt info primitives
-            return $ start <> end
+            return $ start <> mid <> end
           else return mempty
         final <- foldM strokerAction mempty primsList
         return (final <> geom)
@@ -287,7 +307,7 @@ mergeContext :: RenderContext -> DrawAttributes -> RenderContext
 mergeContext ctxt _attr = ctxt
 
 viewBoxOfTree :: Tree -> Maybe (Int, Int, Int, Int)
-viewBoxOfTree (SymbolTree g) = _groupViewBox g
+viewBoxOfTree (SymbolTree (Symbol g)) = _groupViewBox g
 viewBoxOfTree _ = Nothing
 
 geometryOfNamedElement :: RenderContext -> String -> Tree
@@ -445,7 +465,7 @@ renderTree = go where
         attr' = attr <> pAttr
         subTree = geometryOfNamedElement ctxt $ _useName useData
 
-    go ctxt attr (SymbolTree g) = go ctxt attr $ GroupTree g
+    go ctxt attr (SymbolTree (Symbol g)) = go ctxt attr $ GroupTree g
     go ctxt attr (GroupTree (Group groupAttr subTrees _)) = do
         subTrees' <- mapM (go context' attr') subTrees
         return . withTransform groupAttr $ sequence_ subTrees'
