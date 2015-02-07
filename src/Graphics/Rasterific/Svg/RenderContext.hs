@@ -181,8 +181,8 @@ prepareLinearGradientTexture
 prepareLinearGradientTexture ctxt attr grad opa prims =
   let bounds = F.foldMap R.planeBounds prims
       lineariser = case _linearGradientUnits grad of
-        GradientUserSpace -> linearisePoint ctxt attr
-        GradientBoundingBox -> boundbingBoxLinearise ctxt attr bounds
+        CoordUserSpace -> linearisePoint ctxt attr
+        CoordBoundingBox -> boundbingBoxLinearise ctxt attr bounds
       gradient =
         [(offset, fillAlphaCombine opa color)
             | GradientStop offset color <- _linearGradientStops grad]
@@ -198,9 +198,9 @@ prepareRadialGradientTexture
 prepareRadialGradientTexture ctxt attr grad opa prims =
   let bounds = F.foldMap R.planeBounds prims
       (lineariser, lengthLinearise) = case _radialGradientUnits grad of
-        GradientUserSpace ->
+        CoordUserSpace ->
           (linearisePoint ctxt attr, lineariseLength ctxt attr)
-        GradientBoundingBox ->
+        CoordBoundingBox ->
           (boundbingBoxLinearise ctxt attr bounds,
            boundingBoxLength ctxt attr bounds)
       gradient =
@@ -261,6 +261,7 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
   where
     prepare (ElementGeometry _) = return Nothing
     prepare (ElementMarker _) = return Nothing
+    prepare (ElementMask _) = return Nothing
     prepare (ElementLinearGradient grad) =
       return . Just $ prepareLinearGradientTexture ctxt 
                         attr grad opacity prims
