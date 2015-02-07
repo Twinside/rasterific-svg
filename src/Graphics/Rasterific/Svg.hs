@@ -1,4 +1,25 @@
 -- | Svg renderer based on Rasterific.
+--
+-- Here is a simple example of loading a SVG file (using svg-tree)
+-- rendering it to a picture, and saving it to a PNG (using Juicy.Pixels)
+--
+-- @
+-- import Codec.Picture( writePng )
+-- import Graphics.Svg( loadSvgFile )
+-- import Graphics.Rasterific.Svg( loadCreateFontCache
+--                               , renderSvgDocument
+--                               )
+-- loadRender :: FilePath -> FilePath -> IO ()
+-- loadRender svgfilename pngfilename = do
+--   f <- loadSvgFile svgfilename
+--   case f of
+--     Nothing -> putStrLn "Error while loading SVG"
+--     Just doc -> do
+--       cache <- loadCreateFontCache "fonty-texture-cache"
+--       (finalImage, _) <- renderSvgDocument cache Nothing 96 doc
+--       writePng pngfilename finalImage
+-- @
+--
 module Graphics.Rasterific.Svg
                     ( -- * Main functions
                       drawingOfSvgDocument
