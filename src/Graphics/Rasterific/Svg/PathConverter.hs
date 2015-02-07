@@ -1,9 +1,15 @@
+{-# LANGUAGE CPP #-}
 module Graphics.Rasterific.Svg.PathConverter
         ( svgPathToPrimitives
         , svgPathToRasterificPath
         ) where
 
-import Control.Applicative( (<$>), pure )
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( pure )
+#endif
+
+import Control.Applicative( (<$>) )
+
 import Data.List( mapAccumL )
 import Graphics.Rasterific.Linear( (^+^)
                                  , (^-^)

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Graphics.Rasterific.Svg.RenderContext
     ( RenderContext( .. )
     , LoadedElements( .. )
@@ -22,7 +23,10 @@ module Graphics.Rasterific.Svg.RenderContext
     )
     where
 
+#if !MIN_VERSION_base(4,8,0)
 import Data.Monoid( Monoid( .. ) )
+#endif
+
 import Control.Monad.Trans.State.Strict( StateT )
 import Control.Applicative( (<$>) )
 import Codec.Picture( PixelRGBA8( .. ) )
@@ -262,6 +266,7 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
     prepare (ElementGeometry _) = return Nothing
     prepare (ElementMarker _) = return Nothing
     prepare (ElementMask _) = return Nothing
+    prepare (ElementClipPath _) = return Nothing
     prepare (ElementLinearGradient grad) =
       return . Just $ prepareLinearGradientTexture ctxt 
                         attr grad opacity prims

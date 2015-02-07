@@ -1,6 +1,12 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP #-}
 module Graphics.Rasterific.Svg.RasterificTextRendering
         ( renderText ) where
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( (<*>) )
+import Data.Monoid( mappend, mempty )
+#endif
 
 import Control.Monad( foldM )
 import Control.Monad.IO.Class( liftIO )
@@ -9,12 +15,12 @@ import Control.Monad.Trans.State.Strict( execState
                                        , StateT
                                        , modify
                                        , gets )
-import Control.Applicative( (<$>), (<*>), (<|>) )
+import Control.Applicative( (<$>), (<|>) )
 import Control.Lens( at, (?=) )
 import qualified Control.Lens as L
 import Codec.Picture( PixelRGBA8( .. ) )
 import qualified Data.Foldable as F
-import Data.Monoid( mappend, mempty, (<>), Last( .. ), First( .. ) )
+import Data.Monoid( (<>), Last( .. ), First( .. ) )
 import Data.Maybe( fromMaybe )
 import qualified Data.Text as T
 import Graphics.Rasterific.Linear( (^+^), (^-^) )
@@ -303,7 +309,7 @@ fontOfAttributes fontCache attr = case fontFilename of
 
     fontFinder ff =
          First $ findFontInCache fontCache descriptor
-      where descriptor = FontDescriptor	 
+      where descriptor = FontDescriptor
                  { _descriptorFamilyName = T.pack ff
                  , _descriptorStyle = style }
 

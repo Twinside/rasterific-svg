@@ -1,12 +1,17 @@
 {-# LANGUAGE ScopedTypeVariables     #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP #-}
 module Graphics.Rasterific.Svg.RasterificRender
     ( DrawResult( .. )
     , renderSvgDocument
     , drawingOfSvgDocument
     ) where
 
-import Data.Monoid( Last( .. ), mempty, mconcat, (<>) )
+#if !MIN_VERSION_base(4,8,0)
+import Data.Monoid( mempty, mconcat )
+#endif
+
+import Data.Monoid( Last( .. ), (<>) )
 import Data.Maybe( fromMaybe  )
 import Data.Word( Word8 )
 import Control.Monad( foldM )
@@ -172,7 +177,7 @@ filler ctxt info primitives =
     withSvgTexture ctxt info svgTexture opacity primitives
 
 
-drawMarker :: (DrawAttributes -> Last MarkerAttribute)
+drawMarker :: (DrawAttributes -> Last ElementRef)
            -> (R.Drawing PixelRGBA8 () -> Bool -> [R.Primitive] -> R.Drawing PixelRGBA8 ())
            -> RenderContext -> DrawAttributes -> [R.Primitive]
            -> IODraw (R.Drawing PixelRGBA8 ())
@@ -188,8 +193,8 @@ drawMarker accessor placer ctxt info prims =
         return $ placer fittedGeometry (shouldOrient mark) prims
       Just _ -> return mempty
   where
-    markerElem MarkerNone = Nothing
-    markerElem (MarkerRef markerName) =
+    markerElem RefNone = Nothing
+    markerElem (Ref markerName) =
         M.lookup markerName $ _contextDefinitions ctxt
 
     shouldOrient m = case _markerOrient m of
@@ -321,6 +326,8 @@ geometryOfNamedElement ctxt str =
       ElementRadialGradient _ -> None
       ElementPattern _ -> None
       ElementMarker _ -> None
+      ElementMask _ -> None
+      ElementClipPath _ -> None
       ElementGeometry g -> g
 
 imgToPixelRGBA8 :: DynamicImage -> CP.Image PixelRGBA8
