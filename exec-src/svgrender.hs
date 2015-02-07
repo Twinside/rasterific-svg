@@ -1,7 +1,6 @@
 
 {-# LANGUAGE CPP #-}
 #if !MIN_VERSION_base(4,8,0)
-import Data.Foldable( foldMap )
 import Control.Applicative( (<*>), pure )
 #endif
 
