@@ -5,6 +5,8 @@ Rasterific-svg
 
 SVGTiny loader/renderer/serializer based on Rasterific.
 
+The library is available on [Hackage](http://hackage.haskell.org/package/rasterific-svg)
+
 Current capabilities
 --------------------
 
