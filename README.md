@@ -1,6 +1,8 @@
 Rasterific-svg
 ==============
 
+[![Build Status](https://travis-ci.org/Twinside/rasterific-svg.png?branch=master)](https://travis-ci.org/Twinside/rasterific-svg)
+
 SVGTiny loader/renderer/serializer based on Rasterific.
 
 Current capabilities
