@@ -1,5 +1,8 @@
 -*-change-log-*-
 
-v0.1
+v0.1.0.1 February 2015
+ * Fix: Removing bench from test suite.
+
+v0.1 February 2015
  * Initial release
 
