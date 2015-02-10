@@ -1,5 +1,9 @@
 -*-change-log-*-
 
+v0.1.0.2 February 2015
+ * Fix: Removing all test suites from distribution package.
+ * Fix: Lowering some low version bounds.
+
 v0.1.0.1 February 2015
  * Fix: Removing bench from test suite.
 
