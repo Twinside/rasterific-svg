@@ -1,5 +1,8 @@
 -*-change-log-*-
 
+v0.1.0.3 March 2015
+ * Fix: Bumping lens dependency
+
 v0.1.0.2 February 2015
  * Fix: Removing all test suites from distribution package.
  * Fix: Lowering some low version bounds.
