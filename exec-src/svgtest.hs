@@ -1,9 +1,9 @@
 {-# LANGUAGE CPP #-}
 #if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( (<$>) )
 import Data.Foldable( foldMap )
 #endif
 
-import Control.Applicative( (<$>) )
 import Control.Monad( forM_ )
 import Data.Monoid( (<>) )
 import Data.List( isSuffixOf, sort )
@@ -93,6 +93,7 @@ analyzeFolder cache folder = do
     putStrLn $ "Loading: " ++ realFilename
     svg <- loadSvgFile realFilename
     {-putStrLn $ groom svg-}
+    {-putStrLn $ show svg-}
     case svg of
       Nothing -> putStrLn $ "Failed to load " ++ p
       Just d -> do

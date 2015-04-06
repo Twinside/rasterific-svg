@@ -8,6 +8,7 @@ module Graphics.Rasterific.Svg.RasterificRender
     ) where
 
 #if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( (<$>) )
 import Data.Monoid( mempty, mconcat )
 #endif
 
@@ -17,7 +18,6 @@ import Data.Word( Word8 )
 import Control.Monad( foldM )
 import Control.Monad.IO.Class( liftIO )
 import Control.Monad.Trans.State.Strict( modify, runStateT )
-import Control.Applicative( (<$>) )
 import Control.Lens( (&), (.~) )
 import qualified Codec.Picture as CP
 import Codec.Picture( PixelRGBA8( .. )
@@ -278,6 +278,12 @@ drawStartMarker = drawMarker _markerStart transformStart where
       trans | shouldOrient = RT.translate pp <> RT.toNewXBase orient
             | otherwise = RT.translate pp
 
+applyGroupOpacity :: DrawAttributes -> R.Drawing PixelRGBA8 () -> R.Drawing PixelRGBA8 ()
+applyGroupOpacity attrs sub = case _groupOpacity attrs of
+  Nothing -> sub
+  Just 1.0 -> sub
+  Just opa ->
+    R.withGroupOpacity (floor . max 0 . min 255 $ opa * 255) sub
 
 stroker :: Bool -> RenderContext -> DrawAttributes -> [R.Primitive]
         -> IODraw (R.Drawing PixelRGBA8 ())
@@ -392,7 +398,7 @@ renderImage ctxt attr imgInfo = do
           h' = lineariseYLength context' info $ _imageHeight imgInfo
           filling = R.drawImageAtSize (imgToPixelRGBA8 img) 0 p' w' h'
       stroking <- stroker False context' info $ R.rectangle p' w' h'
-      return . withTransform pAttr $ filling <> stroking
+      return . applyGroupOpacity attr . withTransform pAttr $ filling <> stroking
 
 initialDrawAttributes :: DrawAttributes
 initialDrawAttributes = mempty
@@ -477,7 +483,8 @@ renderTree = go where
     go ctxt attr (SymbolTree (Symbol g)) = go ctxt attr $ GroupTree g
     go ctxt attr (GroupTree (Group groupAttr subTrees _)) = do
         subTrees' <- mapM (go context' attr') subTrees
-        return . withTransform groupAttr $ sequence_ subTrees'
+        return . applyGroupOpacity groupAttr
+               . withTransform groupAttr $ sequence_ subTrees'
       where attr' = attr <> groupAttr
             context' = mergeContext ctxt groupAttr
 
@@ -498,7 +505,8 @@ renderTree = go where
 
       filling <- filler context' info rect
       stroking <- stroker False context' info rect
-      return . withTransform pAttr $ filling <> stroking
+      return . applyGroupOpacity pAttr
+             . withTransform pAttr $ filling <> stroking
 
     go ctxt attr (CircleTree (Circle pAttr p r)) = do
       let info = attr <> pAttr
@@ -508,7 +516,8 @@ renderTree = go where
           c = R.circle p' r'
       filling <- filler context' info c
       stroking <- stroker False context' info c
-      return . withTransform pAttr $ filling <> stroking
+      return . applyGroupOpacity pAttr
+             . withTransform pAttr $ filling <> stroking
 
     go ctxt attr (EllipseTree (Ellipse pAttr p rx ry)) = do
       let info = attr <> pAttr
@@ -519,7 +528,8 @@ renderTree = go where
           c = R.ellipse p' rx' ry'
       filling <- filler context' info c
       stroking <- stroker False context' info c
-      return . withTransform pAttr $ filling <> stroking
+      return . applyGroupOpacity pAttr
+             . withTransform pAttr $ filling <> stroking
 
     go ctxt attr (PolyLineTree (PolyLine pAttr points)) =
       go ctxt (dropFillColor attr)
@@ -549,7 +559,7 @@ renderTree = go where
           p1' = linearisePoint context' info p1
           p2' = linearisePoint context' info p2
       stroking <- stroker True context' info $ R.line p1' p2'
-      return $ withTransform pAttr stroking
+      return . applyGroupOpacity pAttr $ withTransform pAttr stroking
 
     go ctxt attr (PathTree (Path pAttr p)) = do
       let info = attr <> pAttr
@@ -557,5 +567,6 @@ renderTree = go where
           fillPrimitives = svgPathToPrimitives True p
       filling <- filler ctxt info fillPrimitives
       stroking <- stroker True ctxt info strokePrimitives
-      return . withTransform pAttr $ filling <> stroking
+      return . applyGroupOpacity pAttr 
+             . withTransform pAttr $ filling <> stroking
 

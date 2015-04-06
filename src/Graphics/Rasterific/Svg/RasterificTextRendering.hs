@@ -4,7 +4,7 @@ module Graphics.Rasterific.Svg.RasterificTextRendering
         ( renderText ) where
 
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative( (<*>) )
+import Control.Applicative( (<*>), (<$>) )
 import Data.Monoid( mappend, mempty )
 #endif
 
@@ -15,7 +15,7 @@ import Control.Monad.Trans.State.Strict( execState
                                        , StateT
                                        , modify
                                        , gets )
-import Control.Applicative( (<$>), (<|>) )
+import Control.Applicative( (<|>) )
 import Control.Lens( at, (?=) )
 import qualified Control.Lens as L
 import Codec.Picture( PixelRGBA8( .. ) )

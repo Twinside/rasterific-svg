@@ -1,5 +1,9 @@
 -*-change-log-*-
 
+v0.1.1 April 2015
+ * Fix: Fixing GHC 7.10.1 related warnings
+ * Fix: Group transparency.
+
 v0.1.0.3 March 2015
  * Fix: Bumping lens dependency
 
