@@ -8,6 +8,7 @@ module Graphics.Rasterific.Svg.RasterificRender
     ) where
 
 #if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( (<$>) )
 import Data.Monoid( mempty, mconcat )
 #endif
 
@@ -17,7 +18,6 @@ import Data.Word( Word8 )
 import Control.Monad( foldM )
 import Control.Monad.IO.Class( liftIO )
 import Control.Monad.Trans.State.Strict( modify, runStateT )
-import Control.Applicative( (<$>) )
 import Control.Lens( (&), (.~) )
 import qualified Codec.Picture as CP
 import Codec.Picture( PixelRGBA8( .. )

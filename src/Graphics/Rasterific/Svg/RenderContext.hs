@@ -24,11 +24,11 @@ module Graphics.Rasterific.Svg.RenderContext
     where
 
 #if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( (<$>) )
 import Data.Monoid( Monoid( .. ) )
 #endif
 
 import Control.Monad.Trans.State.Strict( StateT )
-import Control.Applicative( (<$>) )
 import Codec.Picture( PixelRGBA8( .. ) )
 import qualified Codec.Picture as CP
 import qualified Data.Foldable as F

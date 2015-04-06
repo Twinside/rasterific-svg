@@ -1,6 +1,11 @@
+{-# LANGUAGE CPP #-}
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( (<$>) )
+#endif
+
 import Criterion
 import Criterion.Main
-import Control.Applicative( (<$>) )
 import Graphics.Text.TrueType( emptyFontCache )
 import Graphics.Svg
 import Graphics.Rasterific.Svg

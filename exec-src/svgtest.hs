@@ -1,9 +1,9 @@
 {-# LANGUAGE CPP #-}
 #if !MIN_VERSION_base(4,8,0)
+import Control.Applicative( (<$>) )
 import Data.Foldable( foldMap )
 #endif
 
-import Control.Applicative( (<$>) )
 import Control.Monad( forM_ )
 import Data.Monoid( (<>) )
 import Data.List( isSuffixOf, sort )

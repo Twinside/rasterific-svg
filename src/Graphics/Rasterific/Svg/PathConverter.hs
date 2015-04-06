@@ -5,10 +5,8 @@ module Graphics.Rasterific.Svg.PathConverter
         ) where
 
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative( pure )
+import Control.Applicative( pure, (<$>) )
 #endif
-
-import Control.Applicative( (<$>) )
 
 import Data.List( mapAccumL )
 import Graphics.Rasterific.Linear( (^+^)
