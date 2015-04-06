@@ -93,6 +93,7 @@ analyzeFolder cache folder = do
     putStrLn $ "Loading: " ++ realFilename
     svg <- loadSvgFile realFilename
     {-putStrLn $ groom svg-}
+    {-putStrLn $ show svg-}
     case svg of
       Nothing -> putStrLn $ "Failed to load " ++ p
       Just d -> do
