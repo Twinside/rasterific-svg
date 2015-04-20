@@ -103,11 +103,11 @@ boundingBoxLength ctxt attr (R.PlaneBound mini maxi) = go where
              abs <$> (maxi ^-^ mini)
   two = 2 :: Int
   coeff = sqrt (actualWidth ^^ two + actualHeight ^^ two)
-        / sqrt 2
+        / sqrt 2 :: Float
   go num = case num of
-    Num n -> n
-    Em n -> emTransform attr n
-    Percent p -> p * coeff
+    Num n -> realToFrac n
+    Em n -> emTransform attr $ realToFrac n
+    Percent p -> realToFrac p * coeff
     _ -> go $ stripUnits ctxt num
 
 boundbingBoxLinearise :: RenderContext -> DrawAttributes -> R.PlaneBound -> Point
@@ -117,32 +117,32 @@ boundbingBoxLinearise
   where
     R.V2 w h = abs <$> (maxi ^-^ mini)
     finalX nu = case nu of
-      Num n -> n
-      Em n -> emTransform attr n
-      Percent p -> p * w + xi
+      Num n -> realToFrac n
+      Em n -> emTransform attr $ realToFrac n
+      Percent p -> realToFrac p * w + xi
       _ -> finalX $ stripUnits ctxt nu
 
     finalY nu = case nu of
-      Num n -> n
-      Em n -> emTransform attr n
-      Percent p -> p * h + yi
+      Num n -> realToFrac n
+      Em n -> emTransform attr $ realToFrac n
+      Percent p -> realToFrac p * h + yi
       _ -> finalY $ stripUnits ctxt nu
 
 lineariseXLength :: RenderContext -> DrawAttributes -> Number
-                 -> Coord
-lineariseXLength _ _ (Num i) = i
-lineariseXLength _ attr (Em i) = emTransform attr i
-lineariseXLength ctxt _ (Percent p) = abs (xe - xs) * p
+                 -> Float
+lineariseXLength _ _ (Num i) = realToFrac i
+lineariseXLength _ attr (Em i) = emTransform attr $ realToFrac i
+lineariseXLength ctxt _ (Percent p) = abs (xe - xs) * realToFrac p
   where
     (R.V2 xs _, R.V2 xe _) = _renderViewBox ctxt
 lineariseXLength ctxt attr num =
     lineariseXLength ctxt attr $ stripUnits ctxt num
 
 lineariseYLength :: RenderContext -> DrawAttributes -> Number
-                 -> Coord
-lineariseYLength _ _ (Num i) = i
-lineariseYLength _ attr (Em n) = emTransform attr n
-lineariseYLength ctxt _ (Percent p) = abs (ye - ys) * p
+                 -> Float
+lineariseYLength _ _ (Num i) = realToFrac i
+lineariseYLength _ attr (Em n) = emTransform attr $ realToFrac n
+lineariseYLength ctxt _ (Percent p) = abs (ye - ys) * (realToFrac p)
   where
     (R.V2 _ ys, R.V2 _ ye) = _renderViewBox ctxt
 lineariseYLength ctxt attr num =
@@ -158,16 +158,15 @@ linearisePoint ctxt attr (p1, p2) =
 
 emTransform :: DrawAttributes -> Float -> Float
 emTransform attr n = case getLast $ _fontSize attr of
-    Nothing -> 16 * n
-    Just (Num v) -> v * n
+    Nothing -> 16 * realToFrac n
+    Just (Num v) -> realToFrac v * n
     Just _ -> 16 * n
 
 lineariseLength :: RenderContext -> DrawAttributes -> Number
-                -> Coord
-lineariseLength _ _ (Num i) = i
-lineariseLength _ attr (Em i) =
-    emTransform attr i
-lineariseLength ctxt _ (Percent v) = v * coeff
+                -> Float
+lineariseLength _ _ (Num i) = realToFrac i
+lineariseLength _ attr (Em i) = emTransform attr $ realToFrac i
+lineariseLength ctxt _ (Percent v) = realToFrac v * coeff
   where
     (R.V2 x1 y1, R.V2 x2 y2) = _renderViewBox ctxt
     actualWidth = abs $ x2 - x1

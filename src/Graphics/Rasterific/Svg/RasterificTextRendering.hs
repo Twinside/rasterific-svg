@@ -141,7 +141,7 @@ unconsTextInfo ctxt attr nfo = do
     , _charY = yC
     , _charDx = dxC
     , _charDy = dyC
-    , _charRotate = rotateC
+    , _charRotate = realToFrac <$> rotateC
     , _charStroke =
         (,, joinOfSvg attr, capOfSvg attr) <$> sWidth <*> tex
     }
@@ -212,7 +212,7 @@ prepareCharTranslation ctxt info bounds prevDelta prevAbsolute = go where
   lowerLeftCorner = boundLowerLeftCorner bounds
   toRPoint a b = linearisePoint ctxt mempty (a, b)
   mzero = Just $ Num 0
-  V2 pmx pmy = Just . Num <$> prevAbsolute
+  V2 pmx pmy = Just . Num . realToFrac <$> prevAbsolute
 
   mayForcedPoint = case (_charX info, _charY info) of
     (Nothing, Nothing) -> Nothing
@@ -230,7 +230,7 @@ prepareCharTranslation ctxt info bounds prevDelta prevAbsolute = go where
 
     Just p ->
       let newDelta = prevDelta ^+^ delta
-          positionDelta = p ^-^ lowerLeftCorner
+          positionDelta = (realToFrac <$> p) ^-^ lowerLeftCorner
           trans = RT.translate $ positionDelta ^+^ newDelta in
       (newDelta, positionDelta, trans)
 
@@ -435,10 +435,10 @@ renderString ctxt mayPath anchor str = do
 
 startOffsetOfPath :: RenderContext -> DrawAttributes -> R.Path -> Number
                   -> Float
-startOffsetOfPath _ _ _ (Num i) = i
-startOffsetOfPath _ attr _ (Em i) = emTransform attr i
+startOffsetOfPath _ _ _ (Num i) = realToFrac i
+startOffsetOfPath _ attr _ (Em i) = emTransform attr $ realToFrac i
 startOffsetOfPath _ _ tPath (Percent p) =
-    p * RO.approximatePathLength tPath
+    realToFrac p * RO.approximatePathLength tPath
 startOffsetOfPath ctxt attr tPath num =
     startOffsetOfPath ctxt attr tPath $ stripUnits ctxt num
 

@@ -32,12 +32,12 @@ singularize = concatMap go
    go (QuadraticBezier o lst) = QuadraticBezier o . pure <$> lst
    go (SmoothQuadraticBezierCurveTo o lst) =
        SmoothQuadraticBezierCurveTo o . pure <$> lst
-   go (ElipticalArc o lst) = ElipticalArc o . pure <$> lst
+   go (EllipticalArc o lst) = EllipticalArc o . pure <$> lst
    go EndPath = [EndPath]
 
 toR :: RPoint -> R.Point
 {-# INLINE toR #-}
-toR (L.V2 x y) = R.V2 x y
+toR (L.V2 x y) = realToFrac <$> R.V2 x y
 
 svgPathToPrimitives :: Bool -> [PathCommand] -> [R.Primitive]
 svgPathToPrimitives _ lst | isPathWithArc lst = []
@@ -67,14 +67,14 @@ svgPathToPrimitives shouldClose lst
         ((pp, pp, pp), []) where pp = o ^+^ toR p
 
     go (o@(R.V2 _ y), _, fp) (HorizontalTo OriginAbsolute (c:_)) =
-        ((p, p, fp), R.line o p) where p = R.V2 c y
+        ((p, p, fp), R.line o p) where p = R.V2 (realToFrac c) y
     go (o@(R.V2 x y), _, fp) (HorizontalTo OriginRelative (c:_)) =
-        ((p, p, fp), R.line o p) where p = R.V2 (x + c) y
+        ((p, p, fp), R.line o p) where p = R.V2 (x + realToFrac c) y
 
     go (o@(R.V2 x _), _, fp) (VerticalTo OriginAbsolute (c:_)) =
-        ((p, p, fp), R.line o p) where p = R.V2 x c
+        ((p, p, fp), R.line o p) where p = R.V2 x (realToFrac c)
     go (o@(R.V2 x y), _, fp) (VerticalTo OriginRelative (c:_)) =
-        ((p, p, fp), R.line o p) where p = R.V2 x (c + y)
+        ((p, p, fp), R.line o p) where p = R.V2 x (realToFrac c + y)
 
     go (o, _, fp) (LineTo OriginRelative (c:_)) =
         ((p, p, fp), R.line o p) where p = o ^+^ toR c
@@ -129,7 +129,7 @@ svgPathToPrimitives shouldClose lst
       where c1' = o ^* 2 ^-^ control
             e' = o ^+^ toR e
 
-    go _ (ElipticalArc _ _) = error "Unimplemented"
+    go _ (EllipticalArc _ _) = error "Unimplemented"
 
 
 -- | Conversion function between svg path to the rasterific one.
@@ -162,14 +162,14 @@ svgPathToRasterificPath shouldClose lst =
       ((pp, pp, pp), []) where pp = o ^+^ toR p
 
   go (R.V2 _ y, _, fp) (HorizontalTo OriginAbsolute (c:_)) =
-      ((p, p, fp), lineTo p) where p = R.V2 c y
+      ((p, p, fp), lineTo p) where p = R.V2 (realToFrac c) y
   go (R.V2 x y, _, fp) (HorizontalTo OriginRelative (c:_)) =
-      ((p, p, fp), lineTo p) where p = R.V2 (x + c) y
+      ((p, p, fp), lineTo p) where p = R.V2 (x + realToFrac c) y
 
   go (R.V2 x _, _, fp) (VerticalTo OriginAbsolute (c:_)) =
-      ((p, p, fp), lineTo p) where p = R.V2 x c
+      ((p, p, fp), lineTo p) where p = R.V2 x (realToFrac c)
   go (R.V2 x y, _, fp) (VerticalTo OriginRelative (c:_)) =
-      ((p, p, fp), lineTo p) where p = R.V2 x (c + y)
+      ((p, p, fp), lineTo p) where p = R.V2 x (realToFrac c + y)
 
   go (o, _, fp) (LineTo OriginRelative (c:_)) =
       ((p, p, fp), lineTo p) where p = o ^+^ toR c
@@ -224,5 +224,5 @@ svgPathToRasterificPath shouldClose lst =
     where c1' = o ^* 2 ^-^ control
           e' = o ^+^ toR e
 
-  go _ (ElipticalArc _ _) = error "Unimplemented"
+  go _ (EllipticalArc _ _) = error "Unimplemented"
 
