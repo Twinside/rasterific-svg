@@ -134,17 +134,19 @@ withInfo accessor val action =
 
 toTransformationMatrix :: Transformation -> RT.Transformation
 toTransformationMatrix = go where
+  rf = realToFrac
+
   go (TransformMatrix a b c d e f) =
-     RT.Transformation a b c d e f
-  go (Translate x y) = RT.translate $ V2 x y
-  go (Scale xs Nothing) = RT.scale xs xs
-  go (Scale xs (Just ys)) = RT.scale xs ys
+     RT.Transformation (rf a) (rf b) (rf c) (rf d) (rf e) (rf f)
+  go (Translate x y) = RT.translate $ V2 (rf x) (rf y)
+  go (Scale xs Nothing) = RT.scale (rf xs) (rf xs)
+  go (Scale xs (Just ys)) = RT.scale (rf xs) (rf ys)
   go (Rotate angle Nothing) =
-      RT.rotate $ toRadian angle
+      RT.rotate . toRadian $ rf angle
   go (Rotate angle (Just (cx, cy))) =
-      RT.rotateCenter (toRadian angle) $ V2 cx cy
-  go (SkewX v) = RT.skewX $ toRadian v
-  go (SkewY v) = RT.skewY $ toRadian v
+      RT.rotateCenter (toRadian $ rf angle) $ V2 (rf cx) (rf cy)
+  go (SkewX v) = RT.skewX . toRadian $ rf v
+  go (SkewY v) = RT.skewY . toRadian $ rf v
   go TransformUnknown = mempty
 
 withTransform :: DrawAttributes -> R.Drawing a ()
@@ -206,7 +208,7 @@ drawMarker accessor placer ctxt info prims =
        Nothing -> id
        Just OrientationAuto -> id
        Just (OrientationAngle a) -> 
-         R.withTransformation (RT.rotate $ toRadian a)
+         R.withTransformation (RT.rotate . toRadian $ realToFrac a)
 
     units =
       fromMaybe MarkerUnitStrokeWidth . _markerUnits
