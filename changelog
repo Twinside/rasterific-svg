@@ -1,5 +1,8 @@
 -*-change-log-*-
 
+v0.2.1
+ * Adding: support for arc in path
+
 v0.2 April 2015
  * Bumping: using svg-tree 0.3
 

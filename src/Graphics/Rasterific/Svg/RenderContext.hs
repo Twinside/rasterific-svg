@@ -42,7 +42,7 @@ import qualified Graphics.Rasterific.Texture as RT
 import Graphics.Text.TrueType
 import Graphics.Svg.Types
 
-toRadian :: Float -> Float
+toRadian :: Floating a => a -> a
 toRadian v = v / 180 * pi
 
 data RenderContext = RenderContext
