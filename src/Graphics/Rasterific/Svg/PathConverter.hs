@@ -5,6 +5,7 @@ module Graphics.Rasterific.Svg.PathConverter
         ) where
 
 #if !MIN_VERSION_base(4,8,0)
+import Data.Monoid( mconcat )
 import Control.Applicative( pure, (<$>) )
 #endif
 
