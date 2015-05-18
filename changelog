@@ -1,5 +1,8 @@
 -*-change-log-*-
 
+v0.2.2
+ * Fix: lens upper bound, and removing it.
+
 v0.2.1
  * Adding: support for arc in path
 
