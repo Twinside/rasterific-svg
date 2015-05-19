@@ -114,9 +114,9 @@ drawingOfSvgDocument cache sizes dpi doc = case sizes of
 
     subRenderer subDoc = do
        (drawing, loaded) <-
-           liftIO $ renderSvgDocument cache Nothing dpi subDoc
+           liftIO $ drawingOfSvgDocument cache Nothing dpi subDoc
        modify (<> loaded)
-       return drawing
+       return $ _drawAction drawing
 
     sizeFitter (V2 0 0, V2 vw vh) (actualWidth, actualHeight)
       | aw /= vw || vh /= ah =
