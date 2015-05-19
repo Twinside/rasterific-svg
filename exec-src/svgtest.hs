@@ -11,6 +11,7 @@ import System.Environment( getArgs )
 import System.Directory( createDirectoryIfMissing
                        , getDirectoryContents
                        )
+import qualified Data.ByteString.Lazy as LB
 import qualified Text.Blaze.Html5 as HT
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as H
@@ -57,6 +58,9 @@ svgTestFileOfPath :: FilePath -> FilePath
 svgTestFileOfPath path = testOutputFolder </> base <.> "svg"
   where (_, base) = splitFileName path
 
+pdfTestFileOfPath :: FilePath -> FilePath
+pdfTestFileOfPath path = testOutputFolder </> base <.> "pdf"
+  where (_, base) = splitFileName path
 
 text :: String -> H.Html
 text txt = H.toHtml txt <> H.br
@@ -103,6 +107,11 @@ analyzeFolder cache folder = do
 
         putStrLn "   => XMLize"
         saveXmlFile (svgTestFileOfPath p) d
+
+        putStrLn "   => PDFize"
+        (pdf, _) <- pdfOfSvgDocument cache Nothing 96 d
+        LB.writeFile (pdfTestFileOfPath p) pdf
+
 
 
 testSuite :: IO ()

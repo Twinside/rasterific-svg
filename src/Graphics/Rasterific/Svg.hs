@@ -24,6 +24,7 @@ module Graphics.Rasterific.Svg
                     ( -- * Main functions
                       drawingOfSvgDocument
                     , renderSvgDocument
+                    , pdfOfSvgDocument
                     , loadCreateFontCache
                       -- * Types
                     , LoadedElements( .. )
@@ -68,6 +69,11 @@ renderSvgDocument :: FontCache          -- ^ Structure used to access fonts
                   -> IO (CP.Image PixelRGBA8, LoadedElements)
 renderSvgDocument cache size dpi =
     RR.renderSvgDocument cache size dpi . applyCSSRules . resolveUses
+
+pdfOfSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
+                 -> IO (B.ByteString, LoadedElements)
+pdfOfSvgDocument cache sizes dpi =
+    RR.pdfOfSvgDocument cache sizes dpi . applyCSSRules . resolveUses
 
 -- | Render an svg document to a Rasterific Drawing.
 -- If you provide a size, the document will be stretched to
