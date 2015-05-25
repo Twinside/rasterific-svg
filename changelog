@@ -1,34 +1,55 @@
--*-change-log-*-
+Change log
+==========
 
-v0.2.3:
+v0.2.3 May 2015
+---------------
+
  * Adding: PDF output
 
-v0.2.2.1
+v0.2.2.1 May 2015
+-----------------
+
  * Fix: GHC < 7.10 compilation
 
-v0.2.2
+v0.2.2 May 2015
+---------------
+
  * Fix: lens upper bound, and removing it.
 
-v0.2.1
+v0.2.1 May 2015
+---------------
+
  * Adding: support for arc in path
 
 v0.2 April 2015
+---------------
+
  * Bumping: using svg-tree 0.3
 
 v0.1.1 April 2015
+-----------------
+
  * Fix: Fixing GHC 7.10.1 related warnings
  * Fix: Group transparency.
 
 v0.1.0.3 March 2015
+-------------------
+
  * Fix: Bumping lens dependency
 
 v0.1.0.2 February 2015
+----------------------
+
  * Fix: Removing all test suites from distribution package.
  * Fix: Lowering some low version bounds.
 
 v0.1.0.1 February 2015
+----------------------
+
  * Fix: Removing bench from test suite.
 
 v0.1 February 2015
+------------------
+
  * Initial release
 

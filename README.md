@@ -22,4 +22,7 @@ The implementation also implements feature from SVG 1.1 like:
  * CSS Styling, using CSS2 styling engine.
  * `pattern` element handling
  * `marker` element hadnling
+ * Path arcs.
+
+This package can render SVG to an image or transform it to a PDF.
 

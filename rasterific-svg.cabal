@@ -10,7 +10,7 @@ license-file:        LICENSE
 author:              Vincent Berthoux
 maintainer:          Vincent Berthoux
 -- copyright:           
-extra-source-files:  changelog
+extra-source-files:  changelog, README.md
 category:            Graphics, Svg
 build-type:          Simple
 cabal-version:       >=1.10
@@ -46,7 +46,7 @@ library
                , containers >= 0.5
                , Rasterific >= 0.6 && < 0.7
                , FontyFruity >= 0.5 && < 0.6
-               , svg-tree   >= 0.3 && < 0.4
+               , svg-tree   >= 0.3.1 && < 0.4
                , lens >= 4.5 && < 5
                , linear >= 1.16
                , vector >= 0.10
