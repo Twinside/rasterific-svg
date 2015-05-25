@@ -5,6 +5,7 @@ module Graphics.Rasterific.Svg.RasterificRender
     ( DrawResult( .. )
     , renderSvgDocument
     , drawingOfSvgDocument
+    , pdfOfSvgDocument
     ) where
 
 #if !MIN_VERSION_base(4,8,0)
@@ -37,6 +38,7 @@ import Codec.Picture.Types( promoteImage
                           , convertPixel
                           )
 
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
@@ -77,6 +79,14 @@ renderSvgDocument cache sizes dpi doc = do
           $ _drawAction drawing
   return (img, loaded)
 
+pdfOfSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
+                 -> IO (LB.ByteString, LoadedElements)
+pdfOfSvgDocument cache sizes dpi doc = do
+  (drawing, loaded) <- drawingOfSvgDocument cache sizes dpi doc
+  let img = R.renderDrawingAtDpiToPDF (_drawWidth drawing) (_drawHeight drawing) dpi $ _drawAction drawing
+  return (img, loaded)
+
+
 drawingOfSvgDocument :: FontCache -> Maybe (Int, Int) -> Dpi -> Document
                      -> IO (DrawResult, LoadedElements)
 drawingOfSvgDocument cache sizes dpi doc = case sizes of
@@ -104,9 +114,9 @@ drawingOfSvgDocument cache sizes dpi doc = case sizes of
 
     subRenderer subDoc = do
        (drawing, loaded) <-
-           liftIO $ renderSvgDocument cache Nothing dpi subDoc
+           liftIO $ drawingOfSvgDocument cache Nothing dpi subDoc
        modify (<> loaded)
-       return drawing
+       return $ _drawAction drawing
 
     sizeFitter (V2 0 0, V2 vw vh) (actualWidth, actualHeight)
       | aw /= vw || vh /= ah =

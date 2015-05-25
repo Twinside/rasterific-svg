@@ -51,7 +51,7 @@ data RenderContext = RenderContext
     , _renderDpi          :: Int
     , _contextDefinitions :: M.Map String Element
     , _fontCache          :: FontCache
-    , _subRender          :: Document -> IODraw (CP.Image PixelRGBA8)
+    , _subRender          :: Document -> IODraw (R.Drawing PixelRGBA8 ())
     , _basePath           :: FilePath
     }
 
@@ -273,7 +273,10 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
       return . Just $ prepareRadialGradientTexture ctxt
                         attr grad opacity prims
     prepare (ElementPattern pat) = do
-      patternPicture <- _subRender ctxt $ documentOfPattern pat (_basePath ctxt)
-      return . Just . RT.withSampler R.SamplerRepeat
-                    $ RT.sampledImageTexture patternPicture
+      let doc = documentOfPattern pat (_basePath ctxt)
+          dpi = _renderDpi ctxt
+          w = floor . lineariseXLength ctxt attr $ _patternWidth pat
+          h = floor . lineariseYLength ctxt attr $ _patternHeight pat
+      patDrawing <- _subRender ctxt doc
+      return . Just $ RT.patternTexture w h dpi (PixelRGBA8 0 0 0 0) patDrawing
 

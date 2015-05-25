@@ -8,7 +8,8 @@ import Control.Applicative( (<|>) )
 import Control.Monad( when )
 import Data.Monoid( (<>) )
 import Codec.Picture( writePng )
-import System.FilePath( replaceExtension )
+import System.Directory( getTemporaryDirectory )
+import System.FilePath( (</>), replaceExtension )
 
 import Options.Applicative( Parser
                           , ParserInfo
@@ -91,7 +92,8 @@ fixSize opt (w, h) = (notNull (_width opt) w, notNull (_height opt) h)
 
 runConversion :: Options -> IO ()
 runConversion options = do
-  cache <- loadCreateFontCache "rasterific-svg-font-cache"
+  tempDir <- getTemporaryDirectory 
+  cache <- loadCreateFontCache $ tempDir </> "rasterific-svg-font-cache"
   let filename = _inputFile options
       whenVerbose = when (_verbose options) . putStrLn
   whenVerbose $ "Loading: " ++ filename 
