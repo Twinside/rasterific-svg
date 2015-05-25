@@ -5,6 +5,7 @@ v0.2.3 May 2015
 ---------------
 
  * Adding: PDF output
+ * Fix: font cache created in temp dir
 
 v0.2.2.1 May 2015
 -----------------
