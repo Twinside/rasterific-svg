@@ -1,6 +1,11 @@
 Change log
 ==========
 
+v0.2.3.1 May 2015
+-----------------
+ * Fix: Bumping Rasterific version to compiler
+    without problems with GHC 7.6
+
 v0.2.3 May 2015
 ---------------
 
