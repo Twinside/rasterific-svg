@@ -96,12 +96,15 @@ drawingOfSvgDocument cache sizes dpi doc = case sizes of
     uuWidth = toUserUnit dpi <$> _width doc
     uuHeight = toUserUnit dpi <$> _height doc
     (x1, y1, x2, y2) = case (_viewBox doc, uuWidth, uuHeight) of
-        (Just v,      _,      _) -> v
-        (     _, Just (Num w), Just (Num h)) -> (0, 0, floor w, floor h)
+        (Just (xx1, yy1, xx2, yy2),      _,      _) ->
+            (realToFrac xx1, realToFrac yy1, realToFrac xx2, realToFrac yy2)
+        (     _, Just (Num w), Just (Num h)) ->
+            (0, 0, integralClamp w, integralClamp h)
         _                        -> (0, 0, 1, 1)
+    
+    integralClamp = fromIntegral . (\a -> a :: Int) . floor
 
-    box = (V2 (fromIntegral x1) (fromIntegral y1),
-           V2 (fromIntegral x2) (fromIntegral y2))
+    box = (V2 x1 y1, V2 x2 y2)
     emptyContext = RenderContext
         { _renderViewBox = box
         , _initialViewBox = box
@@ -331,7 +334,7 @@ stroker withMarker ctxt info primitives =
 mergeContext :: RenderContext -> DrawAttributes -> RenderContext
 mergeContext ctxt _attr = ctxt
 
-viewBoxOfTree :: Tree -> Maybe (Int, Int, Int, Int)
+viewBoxOfTree :: Tree -> Maybe (Double, Double, Double, Double)
 viewBoxOfTree (SymbolTree (Symbol g)) = _groupViewBox g
 viewBoxOfTree _ = Nothing
 
@@ -433,7 +436,7 @@ renderSvg initialContext = renderTree initialContext initialDrawAttributes
 
 fitBox :: RenderContext -> DrawAttributes
        -> Point -> Maybe Number -> Maybe Number -> Point
-       -> Maybe (Int, Int, Int, Int)
+       -> Maybe (Double, Double, Double, Double)
        -> R.Drawing px ()
        -> R.Drawing px ()
 fitBox ctxt attr basePoint mwidth mheight preTranslate viewbox =
@@ -445,8 +448,8 @@ fitBox ctxt attr basePoint mwidth mheight preTranslate viewbox =
   case viewbox of
     Nothing -> R.withTransformation (RT.translate origin)
     (Just (xs, ys, xe, ye)) ->
-      let boxOrigin = V2 (fromIntegral xs) (fromIntegral ys)
-          boxEnd = V2 (fromIntegral xe) (fromIntegral ye)
+      let boxOrigin = V2 (realToFrac xs) (realToFrac ys)
+          boxEnd = V2 (realToFrac xe) (realToFrac ye)
           V2 bw bh = abs $ boxEnd ^-^ boxOrigin
           xScaleFactor = case w of
             Just wpx -> wpx / bw

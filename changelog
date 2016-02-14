@@ -1,6 +1,14 @@
 Change log
 ==========
 
+v0.3 February 2015
+------------------
+ * Fix: Updating to handle svg-tree 0.4
+
+v0.2.3.2 October 2015
+---------------------
+ * Fix: bumping optparse-applicative upper bound
+
 v0.2.3.1 May 2015
 -----------------
  * Fix: Bumping Rasterific version to compiler
