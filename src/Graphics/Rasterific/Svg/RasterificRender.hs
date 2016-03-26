@@ -496,7 +496,7 @@ renderTree = go where
         subTree = geometryOfNamedElement ctxt $ _useName useData
 
     go ctxt attr (SymbolTree (Symbol g)) = go ctxt attr $ GroupTree g
-    go ctxt attr (GroupTree (Group groupAttr subTrees _)) = do
+    go ctxt attr (GroupTree (Group groupAttr subTrees _ _)) = do
         subTrees' <- mapM (go context' attr') subTrees
         return . applyGroupOpacity groupAttr
                . withTransform groupAttr $ sequence_ subTrees'
