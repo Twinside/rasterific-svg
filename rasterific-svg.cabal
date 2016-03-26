@@ -22,7 +22,7 @@ Source-Repository head
 Source-Repository this
     Type:      git
     Location:  git://github.com/Twinside/rasterific-svg.git
-    Tag:       v0.3
+    Tag:       v0.3.1
 
 library
   hs-source-dirs: src
