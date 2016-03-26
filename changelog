@@ -1,7 +1,12 @@
 Change log
 ==========
 
-v0.3 February 2015
+v0.3.1.1 March 2016
+-------------------
+ * Bumping to svg-tree 0.5
+ * Bumping linear to 0.20
+
+v0.3 February 2016
 ------------------
  * Fix: Updating to handle svg-tree 0.4
 
