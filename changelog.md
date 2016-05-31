@@ -1,10 +1,14 @@
 Change log
 ==========
 
+v0.3.1.2 May 2016
+-----------------
+ * Fix: Bumping for GHC 8.0
+
 v0.3.1.1 March 2016
 -------------------
- * Bumping to svg-tree 0.5
- * Bumping linear to 0.20
+ * Fix: Bumping to svg-tree 0.5
+ * Fix: Bumping linear to 0.20
 
 v0.3 February 2016
 ------------------
