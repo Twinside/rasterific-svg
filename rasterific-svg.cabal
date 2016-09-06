@@ -32,6 +32,7 @@ library
   exposed-modules: Graphics.Rasterific.Svg
   other-modules: Graphics.Rasterific.Svg.RenderContext
                , Graphics.Rasterific.Svg.PathConverter
+               , Graphics.Rasterific.Svg.MeshConverter
                , Graphics.Rasterific.Svg.RasterificRender
                , Graphics.Rasterific.Svg.RasterificTextRendering
 
@@ -43,9 +44,9 @@ library
                , scientific >= 0.3
                , JuicyPixels >= 3.2 && < 3.3
                , containers >= 0.5
-               , Rasterific >= 0.6.1.1 && < 0.7
+               , Rasterific >= 0.7 && < 0.8
                , FontyFruity >= 0.5.2.1 && < 0.6
-               , svg-tree   >= 0.5.1.1 && < 0.6
+               , svg-tree   >= 0.6 && < 0.7
                , lens >= 4.5 && < 5
                , linear >= 1.20
                , vector >= 0.10

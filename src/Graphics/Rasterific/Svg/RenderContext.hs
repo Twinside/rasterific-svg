@@ -188,7 +188,7 @@ prepareLinearGradientTexture ctxt attr grad opa prims =
         CoordBoundingBox -> boundbingBoxLinearise ctxt attr bounds
       gradient =
         [(offset, fillAlphaCombine opa color)
-            | GradientStop offset color <- _linearGradientStops grad]
+            | GradientStop offset color _ <- _linearGradientStops grad]
       startPoint = lineariser $ _linearGradientStart grad
       stopPoint = lineariser $ _linearGradientStop grad
   in
@@ -208,7 +208,7 @@ prepareRadialGradientTexture ctxt attr grad opa prims =
            boundingBoxLength ctxt attr bounds)
       gradient =
         [(offset, fillAlphaCombine opa color)
-            | GradientStop offset color <- _radialGradientStops grad]
+            | GradientStop offset color _ <- _radialGradientStops grad]
       center = lineariser $ _radialGradientCenter grad
       radius = lengthLinearise $ _radialGradientRadius grad
   in
