@@ -11,6 +11,7 @@ module Graphics.Rasterific.Svg.RenderContext
     , joinOfSvg 
     , stripUnits
     , boundingBoxLength
+    , boundbingBoxLinearise
     , lineariseXLength
     , lineariseYLength
     , linearisePoint
