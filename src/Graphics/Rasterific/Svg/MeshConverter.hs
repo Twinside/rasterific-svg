@@ -42,6 +42,12 @@ convert ctxt bounds mesh = snd $ withMesh baseGrid (gatherGeometry base mesh) wh
 gatherGeometry :: (MonadReader (MutableMesh (PrimState m) px) m, PrimMonad m)
                => R.Point -> MeshGradient -> m ()
 gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
+  toCurve firstPatchPoint lastPoint p = case _gradientPath p of
+    Just p -> svgPathToPrimitives firstPatchPoint lastPoint p
+    Nothing -> lastPoint `straightLine` firstPatchPoint
+
+  lastOf (R.CubicBezier _ _ _ a) = a
+  firstOf (R.CubicBezier a _ _ _) = a
   goRow (y, r) = mapM_ (goPatch y) . zip [0 ..] $ _meshGradientRowPatches r
   goPatch y (x, patch) = case _meshGradientPatchStops patch of
       -- A     B
@@ -49,27 +55,74 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
       --  |   |
       --  +---+
       -- D     C
-      [a, b, c, d] -> return ()
+      [a, b, c, d] -> do
+        let toC = toCurve basePoint
+            northEast = toC basePoint a
+            eastSouth = toC (lastOf northEast) b
+            southWest = toC (lastOf eastSouth) c
+            westNorth = toC (lastOf southWest) d
+        setVertice  x       y      $ firstOf northEast
+        setVertice (x + 1)  y      $ lastOf northEast
+        setVertice (x + 1) (y + 1) $ firstOf southWest
+        setVertice  x      (y + 1) $ lastOf southWest
+        horizOrdered northEast
+        horizUnordered southWest
+        vertUnordered westNorth
+        vertOrdered eastSouth
+
         -- [setAt 0 0 a, setAt 1 0 b, setAt 1 1 c, setAt 0 1 c]
       -- A     B
       --  +---+
       --      |
       --  +---+
       --       C
-      [_a, b, c] | y == 0 -> return ()
-          -- [setAt 1 0 b, setAt 1 1 c]
+      [a, b, c] | y == 0 -> do
+        firstPoint <- getVertice x y
+        let toC = toCurve basePoint
+            northEast = toC firstPoint a
+            eastSouth = toC (lastOf northEast) b
+            southWest = toC (lastOf eastSouth) c
+        setVertice (x + 1)  y      $ lastOf northEast
+        setVertice (x + 1) (y + 1) $ firstOf southWest
+        horizOrdered northEast
+        horizUnordered southWest
+        vertOrdered eastSouth
+
       --       B
       --  +   +
       --  |   |
       --  +---+
       -- D     C
-      [_b, c, d] -> return () -- [setAt 1 1 c, setAt 1 0 d]
+      [b, c, d] -> do
+        firstPoint <- getVertice (x + 1) y
+        let toC = toCurve basePoint
+            eastSouth = toC firstPoint b
+            southWest = toC (lastOf eastSouth) c
+            westNorth = toC (lastOf southWest) d
+        setVertice (x + 1) (y + 1) $ firstOf southWest
+        setVertice  x      (y + 1) $ lastOf southWest
+        horizUnordered southWest
+        vertUnordered westNorth
+        vertOrdered eastSouth
+
       --       B
       --      +
       --      |
       --  +---+
       --       C
-      [_b, c] -> return () -- [setAt 1 1 c]
+      [b, c] -> do
+        firstPoint <- getVertice (x + 1) y
+        let toC = toCurve basePoint
+            eastSouth = toC firstPoint b
+            southWest = toC (lastOf eastSouth) c
+        setVertice (x + 1) (y + 1) $ firstOf southWest
+        horizUnordered southWest
+        vertOrdered eastSouth
+    where
+      horizOrdered (R.CubicBezier _ b c _) = setHorizPoints x y $ InterBezier b c
+      horizUnordered (R.CubicBezier _ b c _) = setHorizPoints x (y + 1) $ InterBezier c b
+      vertUnordered (R.CubicBezier _ b c _) = setVertPoints (x + 1) y $ InterBezier c b
+      vertOrdered (R.CubicBezier _ b c _) = setVertPoints x y $ InterBezier b c
 
 
 gatherColors :: MeshGradient -> Int -> Int -> V.Vector PixelRGBA8

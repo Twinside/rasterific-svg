@@ -178,11 +178,11 @@ lineariseLength ctxt _ (Percent v) = realToFrac v * coeff
 lineariseLength ctxt attr num =
     lineariseLength ctxt attr $ stripUnits ctxt num
 
-prepareLinearGradientTexture
+prepareGradientMeshTexture
     :: RenderContext -> DrawAttributes
-    -> LinearGradient -> Float -> [R.Primitive]
+    -> MeshGradient ->  [R.Primitive]
     -> R.Texture PixelRGBA8
-prepareLinearGradientTexture ctxt attr grad opa prims =
+prepareGradientMeshTexture ctxt attr grad prims =
   let bounds = F.foldMap R.planeBounds prims
       lineariser = case _linearGradientUnits grad of
         CoordUserSpace -> linearisePoint ctxt attr
@@ -267,6 +267,8 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
     prepare (ElementMarker _) = return Nothing
     prepare (ElementMask _) = return Nothing
     prepare (ElementClipPath _) = return Nothing
+    prepare (ElementMeshGradient mesh) =
+      return . Just $ prepareGradientMeshTexture ctxt attr grad prims
     prepare (ElementLinearGradient grad) =
       return . Just $ prepareLinearGradientTexture ctxt 
                         attr grad opacity prims
