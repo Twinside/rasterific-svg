@@ -42,6 +42,7 @@ import qualified Graphics.Rasterific as R
 import qualified Graphics.Rasterific.Texture as RT
 import Graphics.Text.TrueType
 import Graphics.Svg.Types
+import Graphics.Rasterific.Svg.MeshConverter
 
 toRadian :: Floating a => a -> a
 toRadian v = v / 180 * pi
@@ -65,6 +66,10 @@ instance Monoid LoadedElements where
   mempty = LoadedElements mempty mempty
   mappend (LoadedElements a b) (LoadedElements a' b') =
       LoadedElements (a `mappend` a') (b `mappend` b')
+
+globalBounds :: RenderContext -> R.PlaneBound
+globalBounds RenderContext { _renderViewBox = (p1, p2) } =
+    R.PlaneBound p1 p2
 
 loadedFonts :: Lens' LoadedElements (M.Map FilePath Font)
 loadedFonts = lens _loadedFonts (\a b -> a { _loadedFonts = b })
@@ -182,7 +187,18 @@ prepareGradientMeshTexture
     :: RenderContext -> DrawAttributes
     -> MeshGradient ->  [R.Primitive]
     -> R.Texture PixelRGBA8
-prepareGradientMeshTexture ctxt attr grad prims =
+prepareGradientMeshTexture ctxt attr mesh prims =
+  let bounds = F.foldMap R.planeBounds prims
+      strip (x, y) = (stripUnits ctxt x, stripUnits ctxt y)
+      mesh' = mapMeshBaseCoordiantes strip mesh
+  in
+  RT.meshPatchTexture $ convertGradientMesh (globalBounds ctxt) bounds mesh'
+
+prepareLinearGradientTexture
+    :: RenderContext -> DrawAttributes
+    -> LinearGradient -> Float -> [R.Primitive]
+    -> R.Texture PixelRGBA8
+prepareLinearGradientTexture ctxt attr grad opa prims =
   let bounds = F.foldMap R.planeBounds prims
       lineariser = case _linearGradientUnits grad of
         CoordUserSpace -> linearisePoint ctxt attr
@@ -268,7 +284,7 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
     prepare (ElementMask _) = return Nothing
     prepare (ElementClipPath _) = return Nothing
     prepare (ElementMeshGradient mesh) =
-      return . Just $ prepareGradientMeshTexture ctxt attr grad prims
+      return . Just $ prepareGradientMeshTexture ctxt attr mesh prims
     prepare (ElementLinearGradient grad) =
       return . Just $ prepareLinearGradientTexture ctxt 
                         attr grad opacity prims

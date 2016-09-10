@@ -7,12 +7,10 @@ import Data.Monoid( mconcat )
 import Control.Applicative( pure, (<$>) )
 #endif
 
-import Control.Lens( (^.) )
 import Control.Monad.Primitive( PrimMonad, PrimState )
 import Control.Monad.Reader.Class( MonadReader )
 import Graphics.Rasterific.Linear( (^+^)
                                  , (^-^)
-                                 , (^*)
                                  , lerp
                                  )
 import qualified Linear as L
@@ -24,26 +22,70 @@ import Codec.Picture( PixelRGBA8( .. ) )
 
 import Graphics.Svg.Types
 import Graphics.Rasterific.MeshPatch
-import Graphics.Rasterific.Svg.RenderContext
+{-import Graphics.Rasterific.Svg.RenderContext-}
 
-convert :: RenderContext -> R.PlaneBound -> MeshGradient -> MeshPatch PixelRGBA8
-convert ctxt bounds mesh = snd $ withMesh baseGrid (gatherGeometry base mesh) where
+toBaseX :: R.PlaneBound -> MeshGradient -> Float
+toBaseX bounds mesh = case _meshGradientX mesh of
+    Num n -> realToFrac n
+    Percent p -> miniX + (maxiX - miniX) * realToFrac p
+    Px n  -> realToFrac n
+    Em n -> realToFrac n
+    Pc n -> realToFrac n
+    Mm n -> realToFrac n
+    Cm n -> realToFrac n
+    Point n -> realToFrac n
+    Inches n -> realToFrac n
+  where
+    R.PlaneBound (R.V2 miniX _miniY) (R.V2 maxiX _maxiY) = bounds
+
+toBaseY :: R.PlaneBound -> MeshGradient -> Float
+toBaseY bounds mesh = case _meshGradientY mesh of
+    Num n -> realToFrac n
+    Percent p -> miniY + (maxiY - miniY) * realToFrac p
+    Px n  -> realToFrac n
+    Em n -> realToFrac n
+    Pc n -> realToFrac n
+    Mm n -> realToFrac n
+    Cm n -> realToFrac n
+    Point n -> realToFrac n
+    Inches n -> realToFrac n
+  where
+    R.PlaneBound (R.V2 _miniX miniY) (R.V2 _maxiX maxiY) = bounds
+
+
+mapMeshBaseCoordiantes :: ((Number, Number) -> (Number, Number)) -> MeshGradient
+                       -> MeshGradient
+mapMeshBaseCoordiantes f m = m { _meshGradientX = x, _meshGradientY = y }
+  where (x, y) = f (_meshGradientX m, _meshGradientY m)
+
+convertGradientMesh :: R.PlaneBound -> R.PlaneBound -> MeshGradient -> MeshPatch PixelRGBA8
+convertGradientMesh globalBounds bounds mesh = scaler rmesh where
+  (_, rmesh) = withMesh baseGrid (gatherGeometry svgBasePoint mesh)
   (w, h) = svgMeshSize mesh
   colors = gatherColors mesh w h
-  baseGrid = generateLinearGrid w h base base colors
-  attr = mesh ^. drawAttr 
-  svgBasePoint = (_meshGradientX mesh, _meshGradientY mesh)
+  baseGrid = generateLinearGrid w h svgBasePoint svgBasePoint colors
 
-  base = case _meshGradientUnits mesh of
-    CoordUserSpace ->  linearisePoint ctxt attr svgBasePoint
-    CoordBoundingBox ->
-      boundbingBoxLinearise ctxt attr bounds svgBasePoint
+  svgBasePoint =
+      R.V2 (toBaseX startBounds mesh) (toBaseY startBounds mesh)
+
+  startBounds = case _meshGradientUnits mesh of
+    CoordUserSpace -> globalBounds
+    CoordBoundingBox -> R.PlaneBound (R.V2 0 0) (R.V2 1 1)
+ 
+  delta = R._planeMaxBound bounds ^-^ R._planeMinBound bounds
+  toBoundingBox p = R._planeMinBound bounds ^+^ delta * p
+
+  scaler :: MeshPatch px -> MeshPatch px
+  scaler = case _meshGradientUnits mesh of
+    CoordUserSpace -> id
+    CoordBoundingBox -> R.transform toBoundingBox
+
 
 gatherGeometry :: (MonadReader (MutableMesh (PrimState m) px) m, PrimMonad m)
                => R.Point -> MeshGradient -> m ()
 gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
   toCurve firstPatchPoint lastPoint p = case _gradientPath p of
-    Just p -> svgPathToPrimitives firstPatchPoint lastPoint p
+    Just pp -> svgPathToPrimitives firstPatchPoint lastPoint pp
     Nothing -> lastPoint `straightLine` firstPatchPoint
 
   lastOf (R.CubicBezier _ _ _ a) = a
@@ -118,6 +160,7 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
         setVertice (x + 1) (y + 1) $ firstOf southWest
         horizUnordered southWest
         vertOrdered eastSouth
+      _ -> return ()
     where
       horizOrdered (R.CubicBezier _ b c _) = setHorizPoints x y $ InterBezier b c
       horizUnordered (R.CubicBezier _ b c _) = setHorizPoints x (y + 1) $ InterBezier c b
@@ -138,7 +181,7 @@ gatherColors mesh w h = baseVec // foldMap goRow (zip [0 ..] $ _meshGradientRows
       --  +---+
       -- D     C
       [a, b, c, d] ->
-        [setAt 0 0 a, setAt 1 0 b, setAt 1 1 c, setAt 0 1 c]
+        [setAt 0 0 a, setAt 1 0 b, setAt 1 1 c, setAt 0 1 d]
       -- A     B
       --  +---+
       --      |
@@ -157,15 +200,17 @@ gatherColors mesh w h = baseVec // foldMap goRow (zip [0 ..] $ _meshGradientRows
       --  +---+
       --       C
       [_b, c] -> [setAt 1 1 c]
+
+      _ -> []
     where
       setAt dx dy stop = (idx, _gradientColor stop) where
         idx = (y + dy) * (w + 1) + x + dx
 
 
 svgMeshSize :: MeshGradient -> (Int, Int)
-svgMeshSize mesh = (width, height) where
-  height = length $ _meshGradientRows mesh
-  width = maximum $ length . _meshGradientRowPatches <$> _meshGradientRows mesh
+svgMeshSize mesh = (w, h) where
+  h = length $ _meshGradientRows mesh
+  w = maximum $ length . _meshGradientRowPatches <$> _meshGradientRows mesh
 
 svgPathToPrimitives :: R.Point -> R.Point -> GradientPathCommand -> R.CubicBezier
 svgPathToPrimitives firstPatchPoint = go where
