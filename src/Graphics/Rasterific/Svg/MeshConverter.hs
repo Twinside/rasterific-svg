@@ -112,7 +112,6 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
         vertUnordered westNorth
         vertOrdered eastSouth
 
-        -- [setAt 0 0 a, setAt 1 0 b, setAt 1 1 c, setAt 0 1 c]
       -- A     B
       --  +---+
       --      |
@@ -120,15 +119,17 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
       --       C
       [a, b, c] | y == 0 -> do
         firstPoint <- getVertice x y
-        let toC = toCurve basePoint
+        closePoint <- getVertice x (y + 1)
+        let toC = toCurve closePoint
             northEast = toC firstPoint a
             eastSouth = toC (lastOf northEast) b
             southWest = toC (lastOf eastSouth) c
-        setVertice (x + 1)  y      $ lastOf northEast
-        setVertice (x + 1) (y + 1) $ firstOf southWest
+        setVertice (x + 1)  y      $ firstOf eastSouth
+        setVertice (x + 1) (y + 1) $ lastOf eastSouth
         horizOrdered northEast
         horizUnordered southWest
         vertOrdered eastSouth
+
 
       --       B
       --  +   +
@@ -137,7 +138,8 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
       -- D     C
       [b, c, d] -> do
         firstPoint <- getVertice (x + 1) y
-        let toC = toCurve basePoint
+        closePoint <- getVertice x y
+        let toC = toCurve closePoint
             eastSouth = toC firstPoint b
             southWest = toC (lastOf eastSouth) c
             westNorth = toC (lastOf southWest) d
@@ -154,6 +156,7 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
       --       C
       [b, c] -> do
         firstPoint <- getVertice (x + 1) y
+        closePoint <- getVertice x (y + 1)
         let toC = toCurve basePoint
             eastSouth = toC firstPoint b
             southWest = toC (lastOf eastSouth) c
@@ -164,8 +167,8 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
     where
       horizOrdered (R.CubicBezier _ b c _) = setHorizPoints x y $ InterBezier b c
       horizUnordered (R.CubicBezier _ b c _) = setHorizPoints x (y + 1) $ InterBezier c b
-      vertUnordered (R.CubicBezier _ b c _) = setVertPoints (x + 1) y $ InterBezier c b
-      vertOrdered (R.CubicBezier _ b c _) = setVertPoints x y $ InterBezier b c
+      vertUnordered (R.CubicBezier _ b c _) = setVertPoints x y $ InterBezier c b
+      vertOrdered (R.CubicBezier _ b c _) = setVertPoints (x + 1) y $ InterBezier b c
 
 
 gatherColors :: MeshGradient -> Int -> Int -> V.Vector PixelRGBA8
@@ -193,7 +196,7 @@ gatherColors mesh w h = baseVec // foldMap goRow (zip [0 ..] $ _meshGradientRows
       --  |   |
       --  +---+
       -- D     C
-      [_b, c, d] -> [setAt 1 1 c, setAt 1 0 d]
+      [_b, c, d] -> [setAt 1 1 c, setAt 0 1 d]
       --       B
       --      +
       --      |
