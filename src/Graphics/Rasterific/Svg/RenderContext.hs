@@ -191,8 +191,11 @@ prepareGradientMeshTexture ctxt attr mesh prims =
   let bounds = F.foldMap R.planeBounds prims
       strip (x, y) = (stripUnits ctxt x, stripUnits ctxt y)
       mesh' = mapMeshBaseCoordiantes strip mesh
+      interp = case _meshGradientType mesh of
+        GradientBilinear -> R.PatchBilinear
+        GradientBicubic -> R.PatchBicubic
   in
-  RT.meshPatchTexture $ convertGradientMesh (globalBounds ctxt) bounds mesh'
+  RT.meshPatchTexture interp $ convertGradientMesh (globalBounds ctxt) bounds mesh'
 
 prepareLinearGradientTexture
     :: RenderContext -> DrawAttributes
@@ -203,9 +206,10 @@ prepareLinearGradientTexture ctxt attr grad opa prims =
       lineariser = case _linearGradientUnits grad of
         CoordUserSpace -> linearisePoint ctxt attr
         CoordBoundingBox -> boundbingBoxLinearise ctxt attr bounds
+      toA = maybe 1 id
       gradient =
-        [(offset, fillAlphaCombine opa color)
-            | GradientStop offset color _ <- _linearGradientStops grad]
+        [(offset, fillAlphaCombine (opa * toA opa2) color)
+            | GradientStop offset color _ opa2 <- _linearGradientStops grad]
       startPoint = lineariser $ _linearGradientStart grad
       stopPoint = lineariser $ _linearGradientStop grad
   in
@@ -223,9 +227,10 @@ prepareRadialGradientTexture ctxt attr grad opa prims =
         CoordBoundingBox ->
           (boundbingBoxLinearise ctxt attr bounds,
            boundingBoxLength ctxt attr bounds)
+      toA = maybe 1 id
       gradient =
-        [(offset, fillAlphaCombine opa color)
-            | GradientStop offset color _ <- _radialGradientStops grad]
+        [(offset, fillAlphaCombine (opa * toA opa2) color)
+            | GradientStop offset color _ opa2 <- _radialGradientStops grad]
       center = lineariser $ _radialGradientCenter grad
       radius = lengthLinearise $ _radialGradientRadius grad
   in

@@ -157,7 +157,7 @@ gatherGeometry basePoint = mapM_ goRow . zip [0 ..] . _meshGradientRows where
       [b, c] -> do
         firstPoint <- getVertice (x + 1) y
         closePoint <- getVertice x (y + 1)
-        let toC = toCurve basePoint
+        let toC = toCurve closePoint
             eastSouth = toC firstPoint b
             southWest = toC (lastOf eastSouth) c
         setVertice (x + 1) (y + 1) $ firstOf southWest
@@ -206,7 +206,14 @@ gatherColors mesh w h = baseVec // foldMap goRow (zip [0 ..] $ _meshGradientRows
 
       _ -> []
     where
-      setAt dx dy stop = (idx, _gradientColor stop) where
+      colorOf s = case _gradientOpacity s of
+          Nothing -> _gradientColor s
+          Just a -> PixelRGBA8 r g b . floor $ 255 * a
+        where
+          PixelRGBA8 r g b _ = _gradientColor s
+
+
+      setAt dx dy stop = (idx, colorOf stop) where
         idx = (y + dy) * (w + 1) + x + dx
 
 
