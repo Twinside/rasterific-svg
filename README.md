@@ -24,5 +24,9 @@ The implementation also implements feature from SVG 1.1 like:
  * `marker` element hadnling
  * Path arcs.
 
+And from SVG 2.0 draft:
+
+ * Gradient mesh
+
 This package can render SVG to an image or transform it to a PDF.
 

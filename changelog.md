@@ -1,6 +1,12 @@
 Change log
 ==========
 
+v0.3.2 October 2016
+-------------------
+ * Bumping Rasterific dep
+ * Bumping svg-tree dep
+ * Adding SVG2 gradient mesh rendering
+
 v0.3.1.2 May 2016
 -----------------
  * Fix: Bumping for GHC 8.0

@@ -11,6 +11,7 @@ module Graphics.Rasterific.Svg.RenderContext
     , joinOfSvg 
     , stripUnits
     , boundingBoxLength
+    , boundbingBoxLinearise
     , lineariseXLength
     , lineariseYLength
     , linearisePoint
@@ -41,6 +42,7 @@ import qualified Graphics.Rasterific as R
 import qualified Graphics.Rasterific.Texture as RT
 import Graphics.Text.TrueType
 import Graphics.Svg.Types
+import Graphics.Rasterific.Svg.MeshConverter
 
 toRadian :: Floating a => a -> a
 toRadian v = v / 180 * pi
@@ -64,6 +66,10 @@ instance Monoid LoadedElements where
   mempty = LoadedElements mempty mempty
   mappend (LoadedElements a b) (LoadedElements a' b') =
       LoadedElements (a `mappend` a') (b `mappend` b')
+
+globalBounds :: RenderContext -> R.PlaneBound
+globalBounds RenderContext { _renderViewBox = (p1, p2) } =
+    R.PlaneBound p1 p2
 
 loadedFonts :: Lens' LoadedElements (M.Map FilePath Font)
 loadedFonts = lens _loadedFonts (\a b -> a { _loadedFonts = b })
@@ -177,6 +183,20 @@ lineariseLength ctxt _ (Percent v) = realToFrac v * coeff
 lineariseLength ctxt attr num =
     lineariseLength ctxt attr $ stripUnits ctxt num
 
+prepareGradientMeshTexture
+    :: RenderContext -> DrawAttributes
+    -> MeshGradient ->  [R.Primitive]
+    -> R.Texture PixelRGBA8
+prepareGradientMeshTexture ctxt attr mesh prims =
+  let bounds = F.foldMap R.planeBounds prims
+      strip (x, y) = (stripUnits ctxt x, stripUnits ctxt y)
+      mesh' = mapMeshBaseCoordiantes strip mesh
+      interp = case _meshGradientType mesh of
+        GradientBilinear -> R.PatchBilinear
+        GradientBicubic -> R.PatchBicubic
+  in
+  RT.meshPatchTexture interp $ convertGradientMesh (globalBounds ctxt) bounds mesh'
+
 prepareLinearGradientTexture
     :: RenderContext -> DrawAttributes
     -> LinearGradient -> Float -> [R.Primitive]
@@ -186,9 +206,10 @@ prepareLinearGradientTexture ctxt attr grad opa prims =
       lineariser = case _linearGradientUnits grad of
         CoordUserSpace -> linearisePoint ctxt attr
         CoordBoundingBox -> boundbingBoxLinearise ctxt attr bounds
+      toA = maybe 1 id
       gradient =
-        [(offset, fillAlphaCombine opa color)
-            | GradientStop offset color <- _linearGradientStops grad]
+        [(offset, fillAlphaCombine (opa * toA opa2) color)
+            | GradientStop offset color _ opa2 <- _linearGradientStops grad]
       startPoint = lineariser $ _linearGradientStart grad
       stopPoint = lineariser $ _linearGradientStop grad
   in
@@ -206,9 +227,10 @@ prepareRadialGradientTexture ctxt attr grad opa prims =
         CoordBoundingBox ->
           (boundbingBoxLinearise ctxt attr bounds,
            boundingBoxLength ctxt attr bounds)
+      toA = maybe 1 id
       gradient =
-        [(offset, fillAlphaCombine opa color)
-            | GradientStop offset color <- _radialGradientStops grad]
+        [(offset, fillAlphaCombine (opa * toA opa2) color)
+            | GradientStop offset color _ opa2 <- _radialGradientStops grad]
       center = lineariser $ _radialGradientCenter grad
       radius = lengthLinearise $ _radialGradientRadius grad
   in
@@ -266,6 +288,8 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
     prepare (ElementMarker _) = return Nothing
     prepare (ElementMask _) = return Nothing
     prepare (ElementClipPath _) = return Nothing
+    prepare (ElementMeshGradient mesh) =
+      return . Just $ prepareGradientMeshTexture ctxt attr mesh prims
     prepare (ElementLinearGradient grad) =
       return . Just $ prepareLinearGradientTexture ctxt 
                         attr grad opacity prims
