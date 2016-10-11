@@ -51,6 +51,7 @@ import Graphics.Svg.Types hiding ( Dpi )
 import Graphics.Rasterific.Svg.PathConverter
 import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.RasterificTextRendering
+import Graphics.Rasterific.Svg.MeshConverter
 
 {-import Debug.Trace-}
 {-import Text.Groom-}
@@ -557,6 +558,15 @@ renderTree = go where
             [ MoveTo OriginAbsolute [x]
             , LineTo OriginAbsolute xs
             ]
+
+    go ctxt attr (MeshGradientTree mesh) =
+      return $ do
+        R.renderMeshPatch interp rasterificMesh
+      where
+        rasterificMesh = convertGradientMesh mempty mempty mesh
+        interp = case _meshGradientType mesh of
+          GradientBilinear -> R.PatchBilinear
+          GradientBicubic -> R.PatchBicubic
 
     go ctxt attr (PolygonTree (Polygon pAttr points)) =
       go ctxt attr . PathTree . Path pAttr $ toPath points
