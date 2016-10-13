@@ -187,7 +187,7 @@ prepareGradientMeshTexture
     :: RenderContext -> DrawAttributes
     -> MeshGradient ->  [R.Primitive]
     -> R.Texture PixelRGBA8
-prepareGradientMeshTexture ctxt attr mesh prims =
+prepareGradientMeshTexture ctxt _attr mesh prims =
   let bounds = F.foldMap R.planeBounds prims
       strip (x, y) = (stripUnits ctxt x, stripUnits ctxt y)
       mesh' = mapMeshBaseCoordiantes strip mesh

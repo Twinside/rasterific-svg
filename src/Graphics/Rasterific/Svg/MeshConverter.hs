@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Graphics.Rasterific.Svg.MeshConverter where
+module Graphics.Rasterific.Svg.MeshConverter
+    ( mapMeshBaseCoordiantes
+    , convertGradientMesh ) where
 
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid( mconcat )
@@ -51,7 +53,6 @@ toBaseY bounds mesh = case _meshGradientY mesh of
     Inches n -> realToFrac n
   where
     R.PlaneBound (R.V2 _miniX miniY) (R.V2 _maxiX maxiY) = bounds
-
 
 mapMeshBaseCoordiantes :: ((Number, Number) -> (Number, Number)) -> MeshGradient
                        -> MeshGradient
