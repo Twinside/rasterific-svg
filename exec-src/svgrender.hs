@@ -6,6 +6,7 @@ import Control.Applicative( (<$>), (<*>), pure )
 
 import Control.Applicative( (<|>) )
 import Control.Monad( when )
+import qualified Data.ByteString.Lazy as LB
 import Data.Monoid( (<>) )
 import Codec.Picture( writePng )
 import System.Directory( getTemporaryDirectory )
@@ -31,6 +32,7 @@ import Options.Applicative( Parser
 
 import Graphics.Rasterific.Svg( loadCreateFontCache
                               , renderSvgDocument
+                              , pdfOfSvgDocument
                               )
 import Graphics.Svg( loadSvgFile
                    , documentSize )
@@ -41,6 +43,7 @@ data Options = Options
   { _inputFile  :: !FilePath
   , _outputFile :: !FilePath
   , _verbose    :: !Bool
+  , _asPdf      :: !Bool
   , _width      :: !Int
   , _height     :: !Int
   , _dpi        :: !Int
@@ -57,6 +60,7 @@ argParser = Options
                     <> " different extension if unspecified."))
         <|> pure "" )
   <*> ( switch (long "verbose" <> help "Display more information") )
+  <*> ( switch (long "pdf" <> help "Convert to a PDF" ) )
   <*> ( option auto
             (  long "width"
             <> help "Force the width of the rendered PNG"
@@ -77,7 +81,7 @@ argParser = Options
 progOptions :: ParserInfo Options
 progOptions = info (helper <*> argParser)
       ( fullDesc
-     <> progDesc "Convert SVGINPUTFILE into a png OUTPUTFILE"
+     <> progDesc "Convert SVGINPUTFILE into a png or pdf OUTPUTFILE"
      <> header "svgrender svg file renderer." )
 
 outFileName :: Options -> FilePath
@@ -108,9 +112,16 @@ runConversion options = do
       let dpi = _dpi options
           size = fixSize options $ documentSize dpi d
       whenVerbose $ "Rendering at " ++ show size
-      (finalImage, _) <- renderSvgDocument cache (Just size) dpi d
-      writePng (outFileName options) finalImage
-      exitWith ExitSuccess
+      if _asPdf options then do
+        whenVerbose $ "Writing PDF at " ++ outFileName options
+        (doc, _) <- pdfOfSvgDocument cache (Just size) dpi d
+        LB.writeFile (outFileName options) doc
+        exitWith ExitSuccess
+      else do
+        whenVerbose $ "Writing PNG at " ++ outFileName options
+        (finalImage, _) <- renderSvgDocument cache (Just size) dpi d
+        writePng (outFileName options) finalImage
+        exitWith ExitSuccess
 
 main :: IO ()
 main = execParser progOptions >>= runConversion
