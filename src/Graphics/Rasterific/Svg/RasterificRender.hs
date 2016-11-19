@@ -149,8 +149,7 @@ withInfo accessor val action =
 toTransformationMatrix :: Transformation -> RT.Transformation
 toTransformationMatrix = go where
   rf = realToFrac
-
-  go (TransformMatrix a b c d e f) =
+  go (TransformMatrix a d b e c f) =
      RT.Transformation (rf a) (rf b) (rf c) (rf d) (rf e) (rf f)
   go (Translate x y) = RT.translate $ V2 (rf x) (rf y)
   go (Scale xs Nothing) = RT.scale (rf xs) (rf xs)
