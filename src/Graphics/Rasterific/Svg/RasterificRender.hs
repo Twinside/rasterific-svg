@@ -349,6 +349,7 @@ geometryOfNamedElement ctxt str =
       ElementMarker _ -> None
       ElementMask _ -> None
       ElementClipPath _ -> None
+      ElementMeshGradient _ -> None
       ElementGeometry g -> g
 
 imgToPixelRGBA8 :: DynamicImage -> CP.Image PixelRGBA8
@@ -558,7 +559,7 @@ renderTree = go where
             , LineTo OriginAbsolute xs
             ]
 
-    go ctxt attr (MeshGradientTree mesh) =
+    go _ctxt _attr (MeshGradientTree mesh) =
       return $ do
         R.renderMeshPatch interp rasterificMesh
       where
