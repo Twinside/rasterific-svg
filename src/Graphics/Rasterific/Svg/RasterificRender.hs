@@ -170,17 +170,16 @@ withTransform trans draw =
        Just t -> R.withTransformation fullTrans draw
          where fullTrans = F.foldMap toTransformationMatrix t
 
-withSvgTexture :: RenderContext -> DrawAttributes
+withSvgTexture :: R.FillMethod -> RenderContext -> DrawAttributes
                -> Texture -> Float
                -> [R.Primitive]
                -> IODraw (R.Drawing PixelRGBA8 ())
-withSvgTexture ctxt attr texture opacity prims = do
+withSvgTexture fillMethod ctxt attr texture opacity prims = do
   mayTexture <- prepareTexture ctxt attr texture opacity prims
   case mayTexture of
     Nothing -> return $ return ()
     Just tex ->
-      let method = fillMethodOfSvg attr in
-      return . R.withTexture tex $ R.fillWithMethod method prims
+      return . R.withTexture tex $ R.fillWithMethod fillMethod prims
 
 filler :: RenderContext
        -> DrawAttributes
@@ -189,7 +188,7 @@ filler :: RenderContext
 filler ctxt info primitives =
   withInfo (getLast . _fillColor) info $ \svgTexture ->
     let opacity = fromMaybe 1.0 $ _fillOpacity info in
-    withSvgTexture ctxt info svgTexture opacity primitives
+    withSvgTexture (fillMethodOfSvg info) ctxt info svgTexture opacity primitives
 
 
 drawMarker :: (DrawAttributes -> Last ElementRef)
@@ -318,7 +317,7 @@ stroker withMarker ctxt info primitives =
           opacity = fromMaybe 1.0 $ _strokeOpacity info
           strokerAction acc prims =
            (acc <>) <$>
-               withSvgTexture ctxt info svgTexture opacity prims
+               withSvgTexture R.FillWinding ctxt info svgTexture opacity prims
             
       in do
         geom <-
