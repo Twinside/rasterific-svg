@@ -94,8 +94,8 @@ joinOfSvg :: DrawAttributes -> R.Join
 joinOfSvg attrs =
   case (getLast $ _strokeLineJoin attrs, getLast $ _strokeMiterLimit attrs) of
     (Nothing, _) -> R.JoinRound
-    (Just JoinMiter, Just _) -> R.JoinMiter 0
-    (Just JoinMiter, Nothing) -> R.JoinMiter 0
+    (Just JoinMiter, Just v) -> R.JoinMiter $ 1 / realToFrac v
+    (Just JoinMiter, _) -> R.JoinMiter 0
     (Just JoinBevel, _) -> R.JoinMiter 5
     (Just JoinRound, _) -> R.JoinRound
 

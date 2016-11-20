@@ -149,8 +149,7 @@ withInfo accessor val action =
 toTransformationMatrix :: Transformation -> RT.Transformation
 toTransformationMatrix = go where
   rf = realToFrac
-
-  go (TransformMatrix a b c d e f) =
+  go (TransformMatrix a d b e c f) =
      RT.Transformation (rf a) (rf b) (rf c) (rf d) (rf e) (rf f)
   go (Translate x y) = RT.translate $ V2 (rf x) (rf y)
   go (Scale xs Nothing) = RT.scale (rf xs) (rf xs)
@@ -171,17 +170,16 @@ withTransform trans draw =
        Just t -> R.withTransformation fullTrans draw
          where fullTrans = F.foldMap toTransformationMatrix t
 
-withSvgTexture :: RenderContext -> DrawAttributes
+withSvgTexture :: R.FillMethod -> RenderContext -> DrawAttributes
                -> Texture -> Float
                -> [R.Primitive]
                -> IODraw (R.Drawing PixelRGBA8 ())
-withSvgTexture ctxt attr texture opacity prims = do
+withSvgTexture fillMethod ctxt attr texture opacity prims = do
   mayTexture <- prepareTexture ctxt attr texture opacity prims
   case mayTexture of
     Nothing -> return $ return ()
     Just tex ->
-      let method = fillMethodOfSvg attr in
-      return . R.withTexture tex $ R.fillWithMethod method prims
+      return . R.withTexture tex $ R.fillWithMethod fillMethod prims
 
 filler :: RenderContext
        -> DrawAttributes
@@ -190,7 +188,7 @@ filler :: RenderContext
 filler ctxt info primitives =
   withInfo (getLast . _fillColor) info $ \svgTexture ->
     let opacity = fromMaybe 1.0 $ _fillOpacity info in
-    withSvgTexture ctxt info svgTexture opacity primitives
+    withSvgTexture (fillMethodOfSvg info) ctxt info svgTexture opacity primitives
 
 
 drawMarker :: (DrawAttributes -> Last ElementRef)
@@ -319,7 +317,7 @@ stroker withMarker ctxt info primitives =
           opacity = fromMaybe 1.0 $ _strokeOpacity info
           strokerAction acc prims =
            (acc <>) <$>
-               withSvgTexture ctxt info svgTexture opacity prims
+               withSvgTexture R.FillWinding ctxt info svgTexture opacity prims
             
       in do
         geom <-
@@ -350,6 +348,7 @@ geometryOfNamedElement ctxt str =
       ElementMarker _ -> None
       ElementMask _ -> None
       ElementClipPath _ -> None
+      ElementMeshGradient _ -> None
       ElementGeometry g -> g
 
 imgToPixelRGBA8 :: DynamicImage -> CP.Image PixelRGBA8
@@ -559,7 +558,7 @@ renderTree = go where
             , LineTo OriginAbsolute xs
             ]
 
-    go ctxt attr (MeshGradientTree mesh) =
+    go _ctxt _attr (MeshGradientTree mesh) =
       return $ do
         R.renderMeshPatch interp rasterificMesh
       where
