@@ -1,6 +1,12 @@
 Change log
 ==========
 
+v0.3.2.1 November 2016
+----------------------
+ * Fix: handling of "matrix()" transform
+ * Fix: stroking with evenodd fill method.
+ * Fix: handling of miter-limit value
+
 v0.3.2 October 2016
 -------------------
  * Bumping Rasterific dep
