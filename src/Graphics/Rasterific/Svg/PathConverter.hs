@@ -10,6 +10,7 @@ import Control.Applicative( pure, (<$>) )
 #endif
 
 import Data.List( mapAccumL )
+import Data.Fixed( mod' )
 import Graphics.Rasterific.Linear( (^+^)
                                  , (^-^)
                                  , (^*)
@@ -21,6 +22,10 @@ import Linear( dot, (!*!), (!*), V2( V2 ), scaled )
 import qualified Linear as L
 import Graphics.Svg.Types
 import Graphics.Rasterific.Svg.RenderContext
+import Graphics.Rasterific.Svg.ArcConversion
+
+import Debug.Trace
+import Text.Printf
 
 singularize :: [PathCommand] -> [PathCommand]
 singularize = concatMap go
@@ -250,6 +255,119 @@ svgPathToRasterificPath shouldClose lst =
               new = (rx, ry, rot, f1, f2, p')
 
 
+{-
+-- | SVG arc representation uses "endpoint parameterisation" where we specify the endpoint of the arc.
+-- This is to be consistent with the other path commands.  However we need to convert this to "centre point
+--  parameterisation" in order to calculate the arc. Handily, the SVG spec provides all the required maths
+-- in section "F.6 Elliptical arc implementation notes".
+--
+-- Some of this code has been borrowed from the Batik library (Apache-2 license).
+arcToSegments' :: RPoint -> (Coord, Coord, Coord, Bool, Bool, RPoint)
+              -> [PathCommand]
+arcToSegments' orig (radX, radY, _rotateX, _large, _sweep, pos)
+  | orig == pos = mempty -- equivalent to omitting the elliptical arc segment entirely. (by spec)
+  | nearZero radX || nearZero radY = [LineTo OriginAbsolute [pos]]
+arcToSegments' orig (radX, radY, rotateX, large, sweep, pos) = bezierCommands where
+  bezierCommands = arcToBeziers (transform, c) angleStart angleExtent
+
+  m !*! p = (`dot` p) <$> m
+
+  angle = toRadian rotateX `mod'` (2 * pi)
+
+  -- Step 1 : Compute (x1', y1') - the transformed start point
+  -- Compute the midpoint of the line between the current and the end point
+  midpoint@(V2 dx2 dy2) = (orig - pos) * 0.5
+  rotation = mkRotation angle 
+  p1@(V2 x1 y1) = trace (printf "rotation: %s" (show rotation)) $ rotation !* midpoint
+  p1Square@(V2 x1_sq y1_sq) = p1 * p1
+
+  radius@(V2 rx ry)
+    | radiusCheck > 1 = trace ("radius modified") $ localRadius ^* sqrt radiusCheck
+    | otherwise = trace ("radius untouched") $ localRadius
+    where
+      -- Sign of the radii is ignored (behaviour specified by the spec)
+      localRadius = V2 (abs radX) (abs radY)
+      
+      -- We simplify the calculations by transforming the arc so that the origin is at the
+      -- midpoint calculated above followed by a rotation to line up the coordinate axes
+      -- with the axes of the ellipse.
+      V2 cx cy = p1Square / (localRadius * localRadius)
+      radiusCheck = cx + cy
+
+  -- Step 2 : Compute (cx1, cy1) - the transformed centre point
+  sign | large == sweep = -1
+       | otherwise = 1
+
+  V2 rx_sq ry_sq = radius * radius
+
+  sq = trace ("radius: " ++ show radius) $ max 0 $
+    ((rx_sq * ry_sq) - (rx_sq * y1_sq) - (ry_sq * x1_sq)) /
+    ((rx_sq * y1_sq) + (ry_sq * x1_sq))
+
+  coef = sign * sqrt (trace ("sq: " ++ show sq) sq)
+  c1@(V2 cx1 cy1) = trace ("coef: " ++ show coef) $ V2 (coef * ((rx * y1) / ry)) (coef * (- (ry * x1) / rx))
+
+  -- Step 3 : Compute (cx, cy) from (cx1, cy1)
+  s@(V2 sx2 sy2) = trace ("c1: " ++ show c1) $ (orig + pos) * 0.5
+  c@(V2 cx cy) = trace ("s: " ++ show s) $ s + (rotation !* c1)
+
+  -- Step 4 : Compute the angleStart (angle1) and the angleExtent (dangle)
+  u@(V2 ux uy) = trace ("c: " ++ show c) $ (p1 - c) / radius
+  v@(V2 vx vy) = trace ("u: " ++ show u) $ (negate p1 - c) / radius
+
+  -- Compute the angle start
+  sign' | uy < 0 = -1
+        | otherwise = 1
+
+  angleStart = (sign' * acos (ux / L.norm u)) `mod'` (2 * pi)
+
+  -- the angle extent
+  p = trace ("angleStart: " ++ show angleStart) $ ux * vx + uy * vy
+  n = sqrt (L.quadrance u * L.quadrance v)
+
+  sign'' | ux * vy - uy * vx < 0 = -1
+         | otherwise = 1
+
+  angleExtent = trace ("angleExtent v: " ++ show v) $ clampedExtent `mod'` (2 * pi) where
+    v = trace (printf "p: %g n: %g" p n) $ sign'' * acos (p / n)
+    clampedExtent 
+      | not sweep && v > 0 = v - 2 * pi
+      | sweep && v < 0 = v + 2 * pi
+      | otherwise = v
+
+  -- Many elliptical arc implementations including the Java2D and Android ones, only
+  -- support arcs that are axis aligned.  Therefore we need to substitute the arc
+  -- with bezier curves.  The following method call will generate the beziers for
+  -- a unit circle that covers the arc angles we want.
+  transform = mkScale rx ry L.!*! mkRotation angle
+
+arcToBeziers :: (L.M22 Double, L.V2 Double) -> Double -> Double -> [PathCommand]
+arcToBeziers ttt@(transform, pos) angleStart angleExtent =
+    trace (printf "trans: %s %g -> %g [%d]" (show ttt) angleStart angleExtent segmentCount) $
+        if angleExtent == angleExtent then
+            computeSegment <$> [0 .. segmentCount - 1]
+        else mempty where
+  toFinal p = (transform L.!* p) + pos
+  segmentCount :: Int
+  segmentCount = ceiling $ abs angleExtent / (pi / 2)
+  increment = angleExtent / fromIntegral segmentCount
+
+  -- The length of each control point vector is given by the following formula.
+  controlLength = 4 / 3 * sin (increment * 0.5) / (1.0 + cos (increment * 0.5))
+
+  computeSegment i = CurveTo OriginAbsolute [(toFinal p0, toFinal p1, toFinal p2)] where
+    angle = angleStart + fromIntegral i * increment
+    --  Calculate the control vector at this angle
+    (dx, dy) = (cos angle, sin angle)
+
+    -- First control point
+    p0 = L.V2 (dx - controlLength * dy) (dy + controlLength * dx)
+
+    angle' = angle + increment
+    (dx', dy') = (cos angle', sin angle')
+    p1 = L.V2 (dx' + controlLength * dy') (dy' - controlLength * dx')
+    p2 = L.V2 dx' dy'
+
 -- | Create a 2 dimensional rotation matrix given an angle
 -- expressed in radians.
 mkRotation :: Floating a => a -> L.M22 a
@@ -259,6 +377,11 @@ mkRotation angle =
   where
     ca = cos angle
     sa = sin angle
+
+mkScale :: Floating a => a -> a -> L.M22 a
+mkScale sx sy =
+  L.V2 (L.V2 sx  0)
+       (L.V2  0 sy)
 
 mkRota' :: Floating a => a -> L.M22 a
 mkRota' angle =
@@ -271,6 +394,7 @@ mkRota' angle =
 arcToSegments :: RPoint -> (Coord, Coord, Coord, Bool, Bool, RPoint)
               -> [PathCommand]
 arcToSegments orig (radX, radY, rotateX, large, sweep, pos) =
+    trace ("arcToSegments: " ++ show angleSampling) $ 
     [segmentToBezier transBackward (V2 xc yc) th2 th3
             | (th2, th3) <- zip angleSampling $ tail angleSampling]
   where
@@ -329,4 +453,4 @@ segmentToBezier trans (V2 cx cy) th0 th1 =
     p1 = V2 (cx + cos th0 - t * sin th0) (cy + sin th0 + t * cos th0)
     p3@(V2 x3 y3) = V2 (cx + cos th1) (cy + sin th1)
     p2 = V2 (x3 + t * sin th1) (y3 - t * cos th1)
-
+-- -}
