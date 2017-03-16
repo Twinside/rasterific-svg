@@ -50,7 +50,7 @@ arcSegment c th0 th1 r angle = comm where
   !finalRotation = mkRotation $ toRadian angle
 
   !th_half = 0.5 * (th1 - th0)
-  !t = (8.0 / 3.0) *
+  !t = trace (printf "th0: %g th1: %g" th0 th1) $ tlog "t: " $ (8.0 / 3.0) *
       sin (th_half * 0.5) *
       sin (th_half * 0.5) /
       sin th_half
@@ -65,7 +65,7 @@ arcSegment c th0 th1 r angle = comm where
   !p2 = p3 + r * V2 (t * sinTh1) (-t * cosTh1)
   
 tlog :: Show a => String -> a -> a
-tlog msg v = trace (msg ++ show v) v
+tlog _msg v = v -- trace (msg ++ show v) v
 
 -- See Appendix F.6 Elliptical arc implementation notes
 -- http://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes */
@@ -102,9 +102,9 @@ arc p1@(V2 x1 y1) rxOrig ryOrig x_axis_rotation is_large_arc is_sweep p2@(V2 x2 
     
     -- Compute start angle
     kk@(V2 k1 k2) = tlog "kk: " $ (p1_ - c_) / radius
-    kkk@(V2 k3 k4) = tlog "kkk: " $ ((-p1) - c_) / radius
+    kkk@(V2 k3 k4) = tlog "kkk: " $ ((-p1_) - c_) / radius
 
-    theta1 = tlog "theta1: " $ abs . acos . min 1 . max (-1) $ k1 / norm kk
+    theta1 = tlog "theta1: " $ (if k2 < 0 then negate else id) . acos . min 1 . max (-1) $ k1 / norm kk
     
     -- Compute delta_theta
     k5Norm = tlog "k5Norm: " $ sqrt $ quadrance kk * quadrance kkk
@@ -122,7 +122,7 @@ arc p1@(V2 x1 y1) rxOrig ryOrig x_axis_rotation is_large_arc is_sweep p2@(V2 x2 
     n_segs :: Int
     n_segs = tlog "n_segs: " $ ceiling . abs $ delta_theta / (pi * 0.5 + 0.001)
 
-    angleAt v = theta1 + fromIntegral v / fromIntegral n_segs
+    angleAt v = theta1 + fromIntegral v * delta_theta / fromIntegral n_segs
     
     segs = trace ("n_segs:" ++ show n_segs) $
       [arcSegment c (angleAt i) (angleAt $ i + 1) (V2 rx ry) x_axis_rotation | i <- [0 .. n_segs - 1]]
