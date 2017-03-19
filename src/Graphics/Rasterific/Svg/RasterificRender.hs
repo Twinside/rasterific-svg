@@ -146,22 +146,6 @@ withInfo accessor val action =
        Nothing -> return $ return ()
        Just v -> action v
 
-toTransformationMatrix :: Transformation -> RT.Transformation
-toTransformationMatrix = go where
-  rf = realToFrac
-  go (TransformMatrix a d b e c f) =
-     RT.Transformation (rf a) (rf b) (rf c) (rf d) (rf e) (rf f)
-  go (Translate x y) = RT.translate $ V2 (rf x) (rf y)
-  go (Scale xs Nothing) = RT.scale (rf xs) (rf xs)
-  go (Scale xs (Just ys)) = RT.scale (rf xs) (rf ys)
-  go (Rotate angle Nothing) =
-      RT.rotate . toRadian $ rf angle
-  go (Rotate angle (Just (cx, cy))) =
-      RT.rotateCenter (toRadian $ rf angle) $ V2 (rf cx) (rf cy)
-  go (SkewX v) = RT.skewX . toRadian $ rf v
-  go (SkewY v) = RT.skewY . toRadian $ rf v
-  go TransformUnknown = mempty
-
 withTransform :: DrawAttributes -> R.Drawing a ()
               -> R.Drawing a ()
 withTransform trans draw =

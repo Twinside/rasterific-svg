@@ -4,15 +4,7 @@
 module Graphics.Rasterific.Svg.ArcConversion( arcToSegments ) where
 
 import Graphics.Svg.Types
-import Linear( M22
-             , nearZero
-             , dot
-             , (!*!)
-             , (!*)
-             , V2( V2 )
-             , norm
-             , quadrance
-             , scaled )
+import Linear( M22, nearZero, (!*), V2( V2 ), norm, quadrance )
 
 toRadian :: Floating a => a -> a
 toRadian v = v / 180 * pi
@@ -65,7 +57,7 @@ arcSegment c th0 th1 r angle = comm where
 -- http://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes */
 arc :: V2 Double -> Double -> Double -> Double -> Bool -> Bool -> V2 Double
     -> [PathCommand]
-arc p1@(V2 x1 y1) rxOrig ryOrig x_axis_rotation is_large_arc is_sweep p2@(V2 x2 y2)
+arc p1 rxOrig ryOrig x_axis_rotation is_large_arc is_sweep p2
     | p1 == p2 = mempty
     | nearZero (abs rxOrig) || nearZero (abs ryOrig) = [LineTo OriginAbsolute [p2]]
     | kCheck == 0 = mempty
@@ -91,8 +83,8 @@ arc p1@(V2 x1 y1) rxOrig ryOrig x_axis_rotation is_large_arc is_sweep p2@(V2 x2 
     
     kc = (sweepCoeff *) . sqrt . abs $ (rx * rx * ry * ry) / kCheck - 1.0
     
-    c_@(V2 cx_ cy_) = V2 (kc * rx * y1_ / ry) (-kc * ry * x1_ / rx)
-    c@(V2 cx cy) = (mkRotation f !* c_) + (p1 + p2) * 0.5
+    c_ = V2 (kc * rx * y1_ / ry) (-kc * ry * x1_ / rx)
+    c = (mkRotation f !* c_) + (p1 + p2) * 0.5
     
     -- Compute start angle
     kk@(V2 k1 k2) = (p1_ - c_) / radius

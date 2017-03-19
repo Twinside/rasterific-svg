@@ -1,6 +1,12 @@
 Change log
 ==========
 
+v0.3.3 2017
+-----------
+
+ * Fix: Arc rendering, some cases where mishandled
+ * Addition: linked patterns handling
+
 v0.3.2.1 November 2016
 ----------------------
  * Fix: handling of "matrix()" transform

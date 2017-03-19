@@ -17,10 +17,10 @@ module Graphics.Rasterific.Svg.RenderContext
     , linearisePoint
     , lineariseLength
     , prepareTexture
-    , documentOfPattern
     , fillAlphaCombine
     , fillMethodOfSvg
     , emTransform
+    , toTransformationMatrix
     )
     where
 
@@ -39,6 +39,7 @@ import Control.Lens( Lens', lens )
 
 import Graphics.Rasterific.Linear( (^-^) )
 import qualified Graphics.Rasterific as R
+import qualified Graphics.Rasterific.Transformations as RT
 import qualified Graphics.Rasterific.Texture as RT
 import Graphics.Text.TrueType
 import Graphics.Svg.Types
@@ -47,14 +48,16 @@ import Graphics.Rasterific.Svg.MeshConverter
 toRadian :: Floating a => a -> a
 toRadian v = v / 180 * pi
 
+type Definitions = M.Map String Element
+
 data RenderContext = RenderContext
-    { _initialViewBox     :: (R.Point, R.Point)
-    , _renderViewBox      :: (R.Point, R.Point)
-    , _renderDpi          :: Int
-    , _contextDefinitions :: M.Map String Element
-    , _fontCache          :: FontCache
-    , _subRender          :: Document -> IODraw (R.Drawing PixelRGBA8 ())
-    , _basePath           :: FilePath
+    { _initialViewBox     :: !(R.Point, R.Point)
+    , _renderViewBox      :: !(R.Point, R.Point)
+    , _renderDpi          :: !Int
+    , _contextDefinitions :: !Definitions
+    , _fontCache          :: !FontCache
+    , _subRender          :: !(Document -> IODraw (R.Drawing PixelRGBA8 ()))
+    , _basePath           :: !FilePath
     }
 
 data LoadedElements = LoadedElements
@@ -261,17 +264,35 @@ fillAlphaCombine opacity (PixelRGBA8 r g b a) =
     a' = fromIntegral a / 255.0
     alpha = floor . max 0 . min 255 $ opacity * a' * 255
 
-documentOfPattern :: Pattern -> String -> Document
-documentOfPattern pat loc = Document
+documentOfPattern :: Definitions -> Pattern -> String -> Document
+documentOfPattern defs pat loc = Document
     { _viewBox     = _patternViewBox pat
     , _width       = return $ _patternWidth pat
     , _height      = return $ _patternHeight pat
     , _elements    = _patternElements pat
-    , _definitions = M.empty
+    , _definitions = defs
     , _styleRules  = []
     , _description = ""
     , _documentLocation = loc
     }
+
+
+toTransformationMatrix :: Transformation -> RT.Transformation
+toTransformationMatrix = go where
+  rf = realToFrac
+  go (TransformMatrix a d b e c f) =
+     RT.Transformation (rf a) (rf b) (rf c) (rf d) (rf e) (rf f)
+  go (Translate x y) = RT.translate $ R.V2 (rf x) (rf y)
+  go (Scale xs Nothing) = RT.scale (rf xs) (rf xs)
+  go (Scale xs (Just ys)) = RT.scale (rf xs) (rf ys)
+  go (Rotate angle Nothing) =
+      RT.rotate . toRadian $ rf angle
+  go (Rotate angle (Just (cx, cy))) =
+      RT.rotateCenter (toRadian $ rf angle) $ R.V2 (rf cx) (rf cy)
+  go (SkewX v) = RT.skewX . toRadian $ rf v
+  go (SkewY v) = RT.skewY . toRadian $ rf v
+  go TransformUnknown = mempty
+
 
 prepareTexture :: RenderContext -> DrawAttributes
                -> Texture -> Float
@@ -296,11 +317,21 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
     prepare (ElementRadialGradient grad) =
       return . Just $ prepareRadialGradientTexture ctxt
                         attr grad opacity prims
-    prepare (ElementPattern pat) = do
-      let doc = documentOfPattern pat (_basePath ctxt)
+    prepare (ElementPattern pat@Pattern { _patternHref = "" }) = do
+      let doc = documentOfPattern (_contextDefinitions ctxt) pat (_basePath ctxt)
           dpi = _renderDpi ctxt
           w = floor . lineariseXLength ctxt attr $ _patternWidth pat
           h = floor . lineariseYLength ctxt attr $ _patternHeight pat
       patDrawing <- _subRender ctxt doc
       return . Just $ RT.patternTexture w h dpi (PixelRGBA8 0 0 0 0) patDrawing
+    prepare (ElementPattern pat) =
+      let trans = case _patternTransform pat of
+            Nothing -> id
+            Just t ->
+                  maybe id RT.transformTexture
+                . RT.inverseTransformation
+                $ F.foldMap toTransformationMatrix t
+      in
+      fmap trans <$>
+        prepareTexture ctxt attr (TextureRef $ _patternHref pat) opacity prims
 

@@ -10,7 +10,6 @@ import Control.Applicative( pure, (<$>) )
 #endif
 
 import Data.List( mapAccumL )
-import Data.Fixed( mod' )
 import Graphics.Rasterific.Linear( (^+^)
                                  , (^-^)
                                  , (^*)
@@ -18,14 +17,9 @@ import Graphics.Rasterific.Linear( (^+^)
                                  , nearZero
                                  , zero )
 import qualified Graphics.Rasterific as R
-import Linear( dot, (!*!), (!*), V2( V2 ), scaled )
 import qualified Linear as L
 import Graphics.Svg.Types
-import Graphics.Rasterific.Svg.RenderContext
 import Graphics.Rasterific.Svg.ArcConversion
-
-import Debug.Trace
-import Text.Printf
 
 singularize :: [PathCommand] -> [PathCommand]
 singularize = concatMap go
