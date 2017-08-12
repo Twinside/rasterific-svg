@@ -43,7 +43,7 @@ import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Graphics.Rasterific as R
 import System.FilePath( (</>), dropFileName )
-import Graphics.Rasterific.Linear( V2( V2 ), (^+^), (^-^), (^*), zero )
+import Graphics.Rasterific.Linear( V2( V2 ), (^+^), (^*), zero )
 import Graphics.Rasterific.Outline
 import qualified Graphics.Rasterific.Transformations as RT
 import Graphics.Text.TrueType
@@ -129,9 +129,9 @@ drawingOfSvgDocument cache sizes dpi doc = case sizes of
              aw = fromIntegral actualWidth
              ah = fromIntegral actualHeight
     sizeFitter (V2 0 0, _) _ = id
-    sizeFitter (p@(V2 xs ys), V2 xEnd yEnd) actualSize =
-        R.withTransformation (RT.translate (negate p)) .
-            sizeFitter (zero, V2 (xEnd - xs) (yEnd - ys)) actualSize
+    sizeFitter (p, V2 xEnd yEnd) actualSize =
+        sizeFitter (zero, V2 xEnd yEnd) actualSize .
+            R.withTransformation (RT.translate (negate p))
 
     renderAtSize (w, h) = do
       let stateDraw = mapM (renderSvg emptyContext) $ _elements doc
@@ -434,7 +434,7 @@ fitBox ctxt attr basePoint mwidth mheight preTranslate viewbox =
     (Just (xs, ys, xe, ye)) ->
       let boxOrigin = V2 (realToFrac xs) (realToFrac ys)
           boxEnd = V2 (realToFrac xe) (realToFrac ye)
-          V2 bw bh = abs $ boxEnd ^-^ boxOrigin
+          V2 bw bh = abs boxEnd
           xScaleFactor = case w of
             Just wpx -> wpx / bw
             Nothing -> 1.0

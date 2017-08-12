@@ -198,11 +198,18 @@ prepareGradientMeshTexture ctxt _attr mesh prims =
   let bounds = F.foldMap R.planeBounds prims
       strip (x, y) = (stripUnits ctxt x, stripUnits ctxt y)
       mesh' = mapMeshBaseCoordiantes strip mesh
+      gradTransform = toTransformer $ _meshGradientTransform mesh
       interp = case _meshGradientType mesh of
         GradientBilinear -> R.PatchBilinear
         GradientBicubic -> R.PatchBicubic
   in
-  RT.meshPatchTexture interp $ convertGradientMesh (globalBounds ctxt) bounds mesh'
+  RT.meshPatchTexture interp $
+      R.transform gradTransform $ convertGradientMesh (globalBounds ctxt) bounds mesh'
+
+toTransformer :: [Transformation] -> R.Point -> R.Point
+toTransformer [] = id
+toTransformer lst = RT.applyTransformation combined where
+  combined = F.foldMap toTransformationMatrix lst
 
 prepareLinearGradientTexture
     :: RenderContext -> DrawAttributes
@@ -214,13 +221,14 @@ prepareLinearGradientTexture ctxt attr grad opa prims =
         CoordUserSpace -> linearisePoint ctxt attr
         CoordBoundingBox -> boundbingBoxLinearise ctxt attr bounds
       toA = maybe 1 id
+      gradTransform = toTransformer $ _linearGradientTransform grad
       gradient =
         [(offset, fillAlphaCombine (opa * toA opa2) color)
             | GradientStop offset color _ opa2 <- _linearGradientStops grad]
       startPoint = lineariser $ _linearGradientStart grad
       stopPoint = lineariser $ _linearGradientStop grad
   in
-  RT.linearGradientTexture gradient startPoint stopPoint
+  RT.linearGradientTexture gradient (gradTransform startPoint) (gradTransform stopPoint)
 
 prepareRadialGradientTexture
     :: RenderContext -> DrawAttributes
@@ -235,10 +243,11 @@ prepareRadialGradientTexture ctxt attr grad opa prims =
           (boundbingBoxLinearise ctxt attr bounds,
            boundingBoxLength ctxt attr bounds)
       toA = maybe 1 id
+      gradTransform = toTransformer $ _radialGradientTransform grad
       gradient =
         [(offset, fillAlphaCombine (opa * toA opa2) color)
             | GradientStop offset color _ opa2 <- _radialGradientStops grad]
-      center = lineariser $ _radialGradientCenter grad
+      center = gradTransform . lineariser $ _radialGradientCenter grad
       radius = lengthLinearise $ _radialGradientRadius grad
   in
   case (_radialGradientFocusX grad,
@@ -294,11 +303,11 @@ documentOfPattern defs trans w h pat loc =
     tileWidth, tileHeight :: Int
     tileWidth = floor $ widthScale * fromIntegral w
     tileHeight = floor $ heightScale * fromIntegral h
-    asGroup = defaultSvg { _groupChildren = _patternElements pat }
-    transfo = Scale 
+    _asGroup = defaultSvg { _groupChildren = _patternElements pat }
+    _transfo = Scale 
                 (realToFrac widthScale)
                 (Just . realToFrac $ heightScale)
-    asTransformedGroup = asGroup & drawAttr . transform .~ Just [transfo]
+    _asTransformedGroup = _asGroup & drawAttr . transform .~ Just [_transfo]
 
 
 toTransformationMatrix :: Transformation -> RT.Transformation
@@ -346,8 +355,8 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
       patDrawing <- _subRender ctxt doc
       return . Just $ RT.patternTexture w h dpi (PixelRGBA8 0 0 0 0) patDrawing
     ElementPattern pat -> do
-      let inverser = maybe id RT.transformTexture . RT.inverseTransformation
-          applyTransformation = RT.transformTexture
+      let _inverser = maybe id RT.transformTexture . RT.inverseTransformation
+          _applyTransformation = RT.transformTexture
           trans = maybe mempty (F.foldMap toTransformationMatrix) $ _patternTransform pat
           nextRef = _patternHref pat
       maybe (return Nothing) (prepare (rootTrans <> trans)) $ M.lookup nextRef (_contextDefinitions ctxt)
