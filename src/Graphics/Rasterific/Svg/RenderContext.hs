@@ -17,10 +17,10 @@ module Graphics.Rasterific.Svg.RenderContext
     , linearisePoint
     , lineariseLength
     , prepareTexture
-    , documentOfPattern
     , fillAlphaCombine
     , fillMethodOfSvg
     , emTransform
+    , toTransformationMatrix
     )
     where
 
@@ -29,32 +29,39 @@ import Control.Applicative( (<$>) )
 import Data.Monoid( Monoid( .. ) )
 #endif
 
+import Control.Lens( (&), (.~) )
 import Control.Monad.Trans.State.Strict( StateT )
 import Codec.Picture( PixelRGBA8( .. ) )
 import qualified Codec.Picture as CP
 import qualified Data.Foldable as F
 import qualified Data.Map as M
-import Data.Monoid( Last( .. ) )
+import Data.Monoid( (<>), Last( .. ) )
 import Control.Lens( Lens', lens )
 
 import Graphics.Rasterific.Linear( (^-^) )
 import qualified Graphics.Rasterific as R
+import qualified Graphics.Rasterific.Transformations as RT
 import qualified Graphics.Rasterific.Texture as RT
 import Graphics.Text.TrueType
 import Graphics.Svg.Types
 import Graphics.Rasterific.Svg.MeshConverter
 
+import Debug.Trace
+import Text.Printf
+
 toRadian :: Floating a => a -> a
 toRadian v = v / 180 * pi
 
+type Definitions = M.Map String Element
+
 data RenderContext = RenderContext
-    { _initialViewBox     :: (R.Point, R.Point)
-    , _renderViewBox      :: (R.Point, R.Point)
-    , _renderDpi          :: Int
-    , _contextDefinitions :: M.Map String Element
-    , _fontCache          :: FontCache
-    , _subRender          :: Document -> IODraw (R.Drawing PixelRGBA8 ())
-    , _basePath           :: FilePath
+    { _initialViewBox     :: !(R.Point, R.Point)
+    , _renderViewBox      :: !(R.Point, R.Point)
+    , _renderDpi          :: !Int
+    , _contextDefinitions :: !Definitions
+    , _fontCache          :: !FontCache
+    , _subRender          :: !(Document -> IODraw (R.Drawing PixelRGBA8 ()))
+    , _basePath           :: !FilePath
     }
 
 data LoadedElements = LoadedElements
@@ -191,11 +198,18 @@ prepareGradientMeshTexture ctxt _attr mesh prims =
   let bounds = F.foldMap R.planeBounds prims
       strip (x, y) = (stripUnits ctxt x, stripUnits ctxt y)
       mesh' = mapMeshBaseCoordiantes strip mesh
+      gradTransform = toTransformer $ _meshGradientTransform mesh
       interp = case _meshGradientType mesh of
         GradientBilinear -> R.PatchBilinear
         GradientBicubic -> R.PatchBicubic
   in
-  RT.meshPatchTexture interp $ convertGradientMesh (globalBounds ctxt) bounds mesh'
+  RT.meshPatchTexture interp $
+      R.transform gradTransform $ convertGradientMesh (globalBounds ctxt) bounds mesh'
+
+toTransformer :: [Transformation] -> R.Point -> R.Point
+toTransformer [] = id
+toTransformer lst = RT.applyTransformation combined where
+  combined = F.foldMap toTransformationMatrix lst
 
 prepareLinearGradientTexture
     :: RenderContext -> DrawAttributes
@@ -207,13 +221,14 @@ prepareLinearGradientTexture ctxt attr grad opa prims =
         CoordUserSpace -> linearisePoint ctxt attr
         CoordBoundingBox -> boundbingBoxLinearise ctxt attr bounds
       toA = maybe 1 id
+      gradTransform = toTransformer $ _linearGradientTransform grad
       gradient =
         [(offset, fillAlphaCombine (opa * toA opa2) color)
             | GradientStop offset color _ opa2 <- _linearGradientStops grad]
       startPoint = lineariser $ _linearGradientStart grad
       stopPoint = lineariser $ _linearGradientStop grad
   in
-  RT.linearGradientTexture gradient startPoint stopPoint
+  RT.linearGradientTexture gradient (gradTransform startPoint) (gradTransform stopPoint)
 
 prepareRadialGradientTexture
     :: RenderContext -> DrawAttributes
@@ -228,10 +243,11 @@ prepareRadialGradientTexture ctxt attr grad opa prims =
           (boundbingBoxLinearise ctxt attr bounds,
            boundingBoxLength ctxt attr bounds)
       toA = maybe 1 id
+      gradTransform = toTransformer $ _radialGradientTransform grad
       gradient =
         [(offset, fillAlphaCombine (opa * toA opa2) color)
             | GradientStop offset color _ opa2 <- _radialGradientStops grad]
-      center = lineariser $ _radialGradientCenter grad
+      center = gradTransform . lineariser $ _radialGradientCenter grad
       radius = lengthLinearise $ _radialGradientRadius grad
   in
   case (_radialGradientFocusX grad,
@@ -261,17 +277,54 @@ fillAlphaCombine opacity (PixelRGBA8 r g b a) =
     a' = fromIntegral a / 255.0
     alpha = floor . max 0 . min 255 $ opacity * a' * 255
 
-documentOfPattern :: Pattern -> String -> Document
-documentOfPattern pat loc = Document
+scalesOfTransformation :: RT.Transformation -> (Float, Float)
+scalesOfTransformation (RT.Transformation a c _e
+                                          b d _f) = (widthScale, heightScale)
+  where
+    widthScale = sqrt $ a * a + c * c
+    heightScale = sqrt $ b * b + d * d
+
+
+documentOfPattern :: Definitions -> RT.Transformation -> Int -> Int -> Pattern -> String
+                  -> Document
+documentOfPattern defs trans w h pat loc = Document
     { _viewBox     = _patternViewBox pat
-    , _width       = return $ _patternWidth pat
-    , _height      = return $ _patternHeight pat
-    , _elements    = _patternElements pat
-    , _definitions = M.empty
+    , _width       = return . Num $ fromIntegral tileWidth
+    , _height      = return . Num $ fromIntegral tileHeight
+    , _elements    = _patternElements pat -- [GroupTree asTransformedGroup]
+    , _definitions = defs
     , _styleRules  = []
     , _description = ""
     , _documentLocation = loc
     }
+  where
+    (widthScale, heightScale) = scalesOfTransformation trans
+    tileWidth, tileHeight :: Int
+    tileWidth = floor $ widthScale * fromIntegral w
+    tileHeight = floor $ heightScale * fromIntegral h
+    _asGroup = defaultSvg { _groupChildren = _patternElements pat }
+    _transfo = Scale 
+                (realToFrac widthScale)
+                (Just . realToFrac $ heightScale)
+    _asTransformedGroup = _asGroup & drawAttr . transform .~ Just [_transfo]
+
+
+toTransformationMatrix :: Transformation -> RT.Transformation
+toTransformationMatrix = go where
+  rf = realToFrac
+  go (TransformMatrix a d b e c f) =
+     RT.Transformation (rf a) (rf b) (rf c) (rf d) (rf e) (rf f)
+  go (Translate x y) = RT.translate $ R.V2 (rf x) (rf y)
+  go (Scale xs Nothing) = RT.scale (rf xs) (rf xs)
+  go (Scale xs (Just ys)) = RT.scale (rf xs) (rf ys)
+  go (Rotate angle Nothing) =
+      RT.rotate . toRadian $ rf angle
+  go (Rotate angle (Just (cx, cy))) =
+      RT.rotateCenter (toRadian $ rf angle) $ R.V2 (rf cx) (rf cy)
+  go (SkewX v) = RT.skewX . toRadian $ rf v
+  go (SkewY v) = RT.skewY . toRadian $ rf v
+  go TransformUnknown = mempty
+
 
 prepareTexture :: RenderContext -> DrawAttributes
                -> Texture -> Float
@@ -281,26 +334,29 @@ prepareTexture _ _ FillNone _opacity _ = return Nothing
 prepareTexture _ _ (ColorRef color) opacity _ =
   return . Just . RT.uniformTexture $ fillAlphaCombine opacity color
 prepareTexture ctxt attr (TextureRef ref) opacity prims =
-    maybe (return Nothing) prepare $
-        M.lookup ref (_contextDefinitions ctxt)
-  where
-    prepare (ElementGeometry _) = return Nothing
-    prepare (ElementMarker _) = return Nothing
-    prepare (ElementMask _) = return Nothing
-    prepare (ElementClipPath _) = return Nothing
-    prepare (ElementMeshGradient mesh) =
+    maybe (return Nothing) (prepare mempty) $ M.lookup ref (_contextDefinitions ctxt) where
+  prepare rootTrans e = case e of
+    ElementGeometry _ -> return Nothing
+    ElementMarker _ -> return Nothing
+    ElementMask _ -> return Nothing
+    ElementClipPath _ -> return Nothing
+    ElementMeshGradient mesh ->
       return . Just $ prepareGradientMeshTexture ctxt attr mesh prims
-    prepare (ElementLinearGradient grad) =
-      return . Just $ prepareLinearGradientTexture ctxt 
-                        attr grad opacity prims
-    prepare (ElementRadialGradient grad) =
-      return . Just $ prepareRadialGradientTexture ctxt
-                        attr grad opacity prims
-    prepare (ElementPattern pat) = do
-      let doc = documentOfPattern pat (_basePath ctxt)
+    ElementLinearGradient grad ->
+      return . Just $ prepareLinearGradientTexture ctxt attr grad opacity prims
+    ElementRadialGradient grad ->
+      return . Just $ prepareRadialGradientTexture ctxt attr grad opacity prims
+    ElementPattern pat@Pattern { _patternHref = "" } -> do
+      let doc = documentOfPattern (_contextDefinitions ctxt) rootTrans w h pat (_basePath ctxt)
           dpi = _renderDpi ctxt
           w = floor . lineariseXLength ctxt attr $ _patternWidth pat
           h = floor . lineariseYLength ctxt attr $ _patternHeight pat
       patDrawing <- _subRender ctxt doc
       return . Just $ RT.patternTexture w h dpi (PixelRGBA8 0 0 0 0) patDrawing
+    ElementPattern pat -> do
+      let _inverser = maybe id RT.transformTexture . RT.inverseTransformation
+          _applyTransformation = RT.transformTexture
+          trans = maybe mempty (F.foldMap toTransformationMatrix) $ _patternTransform pat
+          nextRef = _patternHref pat
+      maybe (return Nothing) (prepare (rootTrans <> trans)) $ M.lookup nextRef (_contextDefinitions ctxt)
 

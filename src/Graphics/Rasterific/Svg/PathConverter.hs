@@ -17,10 +17,9 @@ import Graphics.Rasterific.Linear( (^+^)
                                  , nearZero
                                  , zero )
 import qualified Graphics.Rasterific as R
-import Linear( dot, (!*!), (!*), V2( V2 ), scaled )
 import qualified Linear as L
 import Graphics.Svg.Types
-import Graphics.Rasterific.Svg.RenderContext
+import Graphics.Rasterific.Svg.ArcConversion
 
 singularize :: [PathCommand] -> [PathCommand]
 singularize = concatMap go
@@ -248,85 +247,4 @@ svgPathToRasterificPath shouldClose lst =
       go back $ EllipticalArc OriginAbsolute [new]
         where p' = p L.^+^ (fromR o)
               new = (rx, ry, rot, f1, f2, p')
-
-
--- | Create a 2 dimensional rotation matrix given an angle
--- expressed in radians.
-mkRotation :: Floating a => a -> L.M22 a
-mkRotation angle =
-  L.V2 (L.V2 ca (-sa))
-       (L.V2 sa ca)
-  where
-    ca = cos angle
-    sa = sin angle
-
-mkRota' :: Floating a => a -> L.M22 a
-mkRota' angle =
-  L.V2 (L.V2 ca sa)
-       (L.V2 (-sa) ca)
-  where
-    ca = cos angle
-    sa = sin angle
-
-arcToSegments :: RPoint -> (Coord, Coord, Coord, Bool, Bool, RPoint)
-              -> [PathCommand]
-arcToSegments orig (radX, radY, rotateX, large, sweep, pos) =
-    [segmentToBezier transBackward (V2 xc yc) th2 th3
-            | (th2, th3) <- zip angleSampling $ tail angleSampling]
-  where
-    angleSampling =
-        [th0 + i * th_arc / fromIntegral segmentCount | i <- fromIntegral <$> [0 .. segmentCount]]
-    theta = toRadian rotateX
-    rotation = mkRota' theta
-
-    V2 px py =
-      (mkRota' theta !* (orig L.^-^ pos)) ^* 0.5
-
-    (rx, ry)
-      | tmp > 1 = (rx' * sqtmp, ry' * sqtmp)
-      | otherwise = (rx', ry')
-      where
-        sqtmp = sqrt tmp
-        tmp = (px * px) / (rx' * rx') + (py * py) / (ry' * ry')
-        rx' = abs radX
-        ry' = abs radY
-
-    transBackward = mkRotation theta !*! scaled (V2 rx ry)
-    trans = scaled (V2 (1 / rx) (1 / ry)) !*! rotation
-
-    orig'@(V2 x0 y0) = trans !* orig
-    pos'@(V2 x1 y1) = trans !* pos
-    delta = pos' L.^-^ orig'
-    d = delta `dot` delta
-
-    sfactor | sweep == large = - factor
-            | otherwise = factor
-      where
-        factor = sqrt . max 0 $ 1 / d - 0.25
-
-    xc = 0.5 * (x0 + x1) - sfactor * (y1-y0)
-    yc = 0.5 * (y0 + y1) + sfactor * (x1-x0)
-
-    th0 = atan2 (y0 - yc) (x0 - xc)
-    th1 = atan2 (y1 - yc) (x1 - xc)
-
-    th_arc | tmp < 0 && sweep = tmp + 2 * pi
-           | tmp > 0 && not sweep = tmp - 2 * pi
-           | otherwise = tmp
-      where
-        tmp = th1 - th0
-
-    segmentCount :: Int
-    segmentCount = ceiling . abs $ th_arc / (pi / 2 + 0.001)
-
-segmentToBezier :: L.M22 Coord ->  RPoint -> Coord -> Coord -> PathCommand
-segmentToBezier trans (V2 cx cy) th0 th1 =
-    CurveTo OriginAbsolute [(trans !* p1, trans !* p2, trans !* p3)]
-  where
-    th_half = 0.5 * (th1 - th0)
-    t = (8 / 3) * sin (th_half * 0.5) * sin (th_half * 0.5) / sin th_half
-    
-    p1 = V2 (cx + cos th0 - t * sin th0) (cy + sin th0 + t * cos th0)
-    p3@(V2 x3 y3) = V2 (cx + cos th1) (cy + sin th1)
-    p2 = V2 (x3 + t * sin th1) (y3 - t * cos th1)
 

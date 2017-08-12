@@ -49,6 +49,7 @@ data Options = Options
   , _dpi        :: !Int
   }
 
+
 argParser :: Parser Options
 argParser = Options
   <$> ( argument str
