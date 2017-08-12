@@ -287,8 +287,7 @@ scalesOfTransformation (RT.Transformation a c _e
 
 documentOfPattern :: Definitions -> RT.Transformation -> Int -> Int -> Pattern -> String
                   -> Document
-documentOfPattern defs trans w h pat loc =
-    trace (printf "w: %d h: %d scx: %g scy: %g tw: %d th: %d trans: %s" w h widthScale heightScale tileWidth tileHeight (show trans)) $ Document
+documentOfPattern defs trans w h pat loc = Document
     { _viewBox     = _patternViewBox pat
     , _width       = return . Num $ fromIntegral tileWidth
     , _height      = return . Num $ fromIntegral tileHeight
