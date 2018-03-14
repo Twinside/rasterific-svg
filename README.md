@@ -1,7 +1,6 @@
 Rasterific-svg
 ==============
 
-[![Build Status](https://travis-ci.org/Twinside/rasterific-svg.png?branch=master)](https://travis-ci.org/Twinside/rasterific-svg)
 [![Hackage](https://img.shields.io/hackage/v/rasterific-svg.svg)](http://hackage.haskell.org/package/rasterific-svg)
 SVGTiny loader/renderer/serializer based on Rasterific.
 

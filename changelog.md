@@ -1,6 +1,11 @@
 Change log
 ==========
 
+v0.3.3.1 March 2018
+-------------------
+
+ * Providing Semigroup instances
+
 v0.3.3 2017
 -----------
 
