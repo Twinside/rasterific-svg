@@ -35,7 +35,8 @@ import Codec.Picture( PixelRGBA8( .. ) )
 import qualified Codec.Picture as CP
 import qualified Data.Foldable as F
 import qualified Data.Map as M
-import Data.Monoid( (<>), Last( .. ) )
+import Data.Monoid( Last( .. ) )
+import Data.Semigroup( Semigroup( .. )) 
 import Control.Lens( Lens', lens )
 
 import Graphics.Rasterific.Linear( (^-^) )
@@ -69,10 +70,13 @@ data LoadedElements = LoadedElements
     , _loadedImages :: M.Map FilePath (CP.Image PixelRGBA8)
     }
 
+instance Semigroup LoadedElements where
+  (<>) (LoadedElements a b) (LoadedElements a' b') =
+      LoadedElements (a `mappend` a') (b `mappend` b')
+
 instance Monoid LoadedElements where
   mempty = LoadedElements mempty mempty
-  mappend (LoadedElements a b) (LoadedElements a' b') =
-      LoadedElements (a `mappend` a') (b `mappend` b')
+  mappend = (<>)
 
 globalBounds :: RenderContext -> R.PlaneBound
 globalBounds RenderContext { _renderViewBox = (p1, p2) } =
@@ -358,5 +362,5 @@ prepareTexture ctxt attr (TextureRef ref) opacity prims =
           _applyTransformation = RT.transformTexture
           trans = maybe mempty (F.foldMap toTransformationMatrix) $ _patternTransform pat
           nextRef = _patternHref pat
-      maybe (return Nothing) (prepare (rootTrans <> trans)) $ M.lookup nextRef (_contextDefinitions ctxt)
+      maybe (return Nothing) (prepare (rootTrans `mappend` trans)) $ M.lookup nextRef (_contextDefinitions ctxt)
 
