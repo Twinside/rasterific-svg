@@ -51,7 +51,7 @@ library
                , scientific >= 0.3
                , JuicyPixels >= 3.2
                , containers >= 0.5
-               , Rasterific >= 0.7 && < 0.8
+               , Rasterific >= 0.7.4.4 && < 0.8
                , FontyFruity >= 0.5.2.1 && < 0.6
                , svg-tree   >= 0.6.2 && < 0.7
                , lens >= 4.5 && < 5
