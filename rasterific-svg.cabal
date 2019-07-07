@@ -68,7 +68,7 @@ Executable svgrender
   Main-Is: svgrender.hs
   Ghc-options: -O3 -Wall
   Build-Depends: base >= 4.6
-               , optparse-applicative >= 0.11 && < 0.15
+               , optparse-applicative >= 0.11
                , directory >= 1.0
                , bytestring
                , rasterific-svg
